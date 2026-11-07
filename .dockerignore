@@ -1,0 +1,14 @@
+node_modules
+.next
+.git
+.claude
+.env
+.env.*
+!.env.example
+service-account.json
+seed/accounts.json
+seed/*.csv
+seed/photos
+deploy
+tests
+*.log

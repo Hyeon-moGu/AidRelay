@@ -48,3 +48,4 @@ service-account.json
 seed/sandbox-accounts.csv
 seed/sandbox-accounts-nobom.csv
 seed/*.csv
+deploy/env.yaml

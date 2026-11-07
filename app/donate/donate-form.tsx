@@ -136,7 +136,7 @@ export function DonateForm({ clientId }: { clientId: string }) {
   if (phase.kind === "unconfigured") {
     return (
       <p className="rounded-md border border-amber-300 bg-amber-50 p-4 text-sm text-amber-900 dark:border-amber-700 dark:bg-amber-950 dark:text-amber-100">
-        The donate button needs <code>NEXT_PUBLIC_PAYPAL_CLIENT_ID</code> in <code>.env</code> (AGENTS.md §7).
+        The donate button needs <code>PAYPAL_CLIENT_ID</code> in <code>.env</code> (AGENTS.md §7).
       </p>
     );
   }

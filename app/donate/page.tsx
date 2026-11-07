@@ -5,8 +5,9 @@ import { DonateForm } from "./donate-form";
 export const metadata: Metadata = { title: "Donate — AidRelay" };
 
 export default function DonatePage() {
-  // Public client id only; the secret never leaves lib/paypal/* on the server.
-  const clientId = process.env.NEXT_PUBLIC_PAYPAL_CLIENT_ID ?? "";
+  // The client id is public; read at request time on the server so the Docker image needs no build-time env.
+  // The secret never leaves lib/paypal/* on the server.
+  const clientId = process.env.PAYPAL_CLIENT_ID ?? "";
 
   return (
     <main className="mx-auto flex min-h-screen max-w-xl flex-col gap-8 px-6 py-16">

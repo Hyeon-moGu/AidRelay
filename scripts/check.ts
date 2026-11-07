@@ -59,9 +59,6 @@ async function main() {
 
   await step("paypal", ["PAYPAL_CLIENT_ID", "PAYPAL_CLIENT_SECRET"], async () => {
     const token = await paypalToken();
-    if (env.NEXT_PUBLIC_PAYPAL_CLIENT_ID && env.NEXT_PUBLIC_PAYPAL_CLIENT_ID !== env.PAYPAL_CLIENT_ID) {
-      throw new Error("NEXT_PUBLIC_PAYPAL_CLIENT_ID differs from PAYPAL_CLIENT_ID; they must be the same app");
-    }
     // An empty body never creates a batch: 400 means the Payouts permission was passed, 403 means it is off.
     const res = await fetch(`${PAYPAL}/v1/payments/payouts`, { method: "POST", headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" }, body: "{}" });
     if (res.status === 403) throw new Error("token ok but Payouts is NOT enabled on the app (Apps & Credentials → Features → Payouts)");
