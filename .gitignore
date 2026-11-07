@@ -1,0 +1,10 @@
+node_modules/
+.next/
+out/
+.env
+.env.*
+!.env.example
+seed/accounts.json
+seed/photos/
+*.log
+.DS_Store
