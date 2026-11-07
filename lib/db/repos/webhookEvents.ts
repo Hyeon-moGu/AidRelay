@@ -31,6 +31,11 @@ export async function claimWebhookEvent(event: WebhookEvent): Promise<ClaimResul
   }
 }
 
+export async function getWebhookEvent(eventId: string): Promise<WebhookEventDoc | undefined> {
+  const snap = await getDb().collection(col.webhookEvents).doc(eventId).get();
+  return snap.exists ? (snap.data() as WebhookEventDoc) : undefined;
+}
+
 export async function markWebhookHandled(eventId: string, outcome: Record<string, unknown>): Promise<void> {
   await getDb()
     .collection(col.webhookEvents)

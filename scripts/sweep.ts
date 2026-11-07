@@ -1,12 +1,22 @@
-// pnpm agent:sweep — runs the Case Officer over every case in status new | evaluated | parked.
-// Day 2 work; this stub only documents the contract so the command exists from Day 1.
+// pnpm agent:sweep — runs the Case Officer over every case in status new | approved | parked.
 try {
   process.loadEnvFile();
 } catch {
-  // .env is optional for the stub
+  // rely on the environment when there is no .env
 }
 
-console.error(
-  "pnpm agent:sweep is not implemented yet (planned for Day 2: lib/agent/officer.ts runCaseOfficer({ trigger: 'sweep' })).",
+async function main() {
+  const { runCaseOfficer } = await import("@/lib/agent/officer");
+  const result = await runCaseOfficer({ trigger: "sweep" });
+  console.log(`run ${result.runId}`);
+  console.log(result.summary);
+  console.log(`tokens: in ${result.usage.inputTokens}, out ${result.usage.outputTokens}, model calls ${result.usage.modelCalls}`);
+}
+
+main().then(
+  () => process.exit(0),
+  (err) => {
+    console.error(err);
+    process.exit(1);
+  },
 );
-process.exit(1);

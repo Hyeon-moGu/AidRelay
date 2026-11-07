@@ -15,6 +15,7 @@ const PII_KEYS = new Set([
   "phone_number",
   "payer_id",
   "account_id",
+  "receiver", // payout item recipient email
 ]);
 
 /** Deep-copies `value`, dropping any object key that commonly carries personal data. */

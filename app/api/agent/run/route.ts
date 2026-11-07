@@ -1,12 +1,14 @@
 // Internal: run the Case Officer for an event. Protected by AGENT_INTERNAL_SECRET (AGENTS.md §4).
 import { timingSafeEqual } from "node:crypto";
 import { z } from "zod";
+import { runCaseOfficer } from "@/lib/agent/officer";
 import { AGENT_TRIGGERS } from "@/lib/agent/trigger";
 import { getEnv } from "@/lib/env";
 import { fail, handleRouteError, ok, parseJson } from "@/lib/http";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
+export const maxDuration = 300;
 
 const Body = z.object({
   trigger: z.enum(AGENT_TRIGGERS),
@@ -28,9 +30,8 @@ export async function POST(req: Request) {
       return fail("unauthorized", 401);
     }
     const body = await parseJson(req, Body);
-    // Day 2: `await runCaseOfficer(body)` from lib/agent/officer.ts. Until then the trigger is acknowledged only.
-    console.log("[agent.run] trigger received (Case Officer not implemented yet)", body);
-    return ok({ handled: false, reason: "Case Officer not implemented yet (Day 2)", received: body });
+    const result = await runCaseOfficer(body);
+    return ok(result);
   } catch (err) {
     return handleRouteError(err, "agent/run");
   }

@@ -81,6 +81,13 @@ export interface HumanDecision {
   at: Timestamp;
 }
 
+export interface DupMatch {
+  caseId: string;
+  by: Array<"photo" | "address" | "contact">;
+  /** Smallest hash distance among matching photos, when `by` includes "photo". */
+  photoDistance?: number;
+}
+
 export interface CaseDoc {
   id: string;
   /** Unguessable token for /status/[token]. */
@@ -90,17 +97,27 @@ export interface CaseDoc {
   householdSize: number | null;
   requestedAmountCents: number | null;
   narrative: string;
+  /** GCS object paths. */
   photos: string[];
   docs: string[];
+  /** dHash per photo, computed at intake (lib/dedupe/phash.ts). */
+  photoHashes?: string[];
   /** Private. Never copied to the ledger. */
   contact: CaseContact;
   status: CaseStatus;
   tier?: number | null;
   aiDecision?: Decision;
+  /** Amount the fund will pay: the human's figure if set, else the agent's recommendation. */
+  approvedAmountCents?: number;
   humanDecision?: HumanDecision;
   redFlags?: RedFlag[];
+  dupMatches?: DupMatch[];
+  /** Follow-up shown on the applicant's status page (policy §6). */
+  applicantMessage?: { lang: string; text: string; at: Timestamp };
   reservedCents?: number;
   payoutBatchId?: string;
+  notes?: Array<{ by: AuditActor; text: string; at: Timestamp }>;
+  lastRunId?: string;
   timestamps: {
     created: Timestamp;
     evaluated?: Timestamp;
@@ -109,26 +126,63 @@ export interface CaseDoc {
   };
 }
 
+export type PayoutStatus =
+  | "creating"
+  | "create_failed"
+  | "PENDING"
+  | "PROCESSING"
+  | "SUCCESS"
+  | "DENIED"
+  | "CANCELED"
+  | "UNCLAIMED"
+  | "FAILED"
+  | "RETURNED"
+  | "ONHOLD"
+  | "BLOCKED"
+  | "REFUNDED"
+  | "REVERSED"
+  | "NEW"
+  | string;
+
 export interface PayoutDoc {
   caseId: string;
   /** = caseId: one payout per case, idempotent (AGENTS.md §1.3). */
   senderBatchId: string;
   payoutBatchId?: string;
+  payoutItemId?: string;
+  transactionId?: string;
   amountCents: number;
   currency: string;
   recipientEmail: string;
-  status: string;
-  events: Array<{ type: string; status?: string; at: Timestamp }>;
+  status: PayoutStatus;
+  outcome: "pending" | "paid" | "failed";
+  error?: string;
+  events: Array<{ type: string; status?: string; source: "api" | "webhook" | "poll"; at: Timestamp }>;
   createdAt: Timestamp;
   updatedAt: Timestamp;
+}
+
+export interface ToolCallRecord {
+  name: string;
+  args: unknown;
+  result?: unknown;
+  policyClause?: string;
+  ms: number;
+  at: Timestamp;
+  error?: string;
 }
 
 export interface AgentRunDoc {
   id: string;
   trigger: string;
   caseId?: string;
-  toolCalls: Array<{ name: string; args: unknown; result?: unknown; policyClause?: string; ms?: number }>;
+  orderId?: string;
+  eventId?: string;
+  status: "running" | "done" | "error";
+  toolCalls: ToolCallRecord[];
   summary: string;
-  cost?: { inputTokens: number; outputTokens: number; usd?: number };
+  cost?: { inputTokens: number; outputTokens: number; modelCalls: number };
+  error?: string;
   ts: Timestamp;
+  finishedAt?: Timestamp;
 }
