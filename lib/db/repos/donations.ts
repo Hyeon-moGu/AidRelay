@@ -36,14 +36,10 @@ export async function getDonation(orderId: string): Promise<DonationDoc | undefi
   return snap.exists ? (snap.data() as DonationDoc) : undefined;
 }
 
+/** Captured donations, newest first. Only captured donations carry `capturedAt`, so ordering by it needs no composite index. */
 export async function listRecentDonations(limit = 20): Promise<DonationDoc[]> {
-  const snap = await getDb()
-    .collection(col.donations)
-    .where("status", "==", "captured")
-    .orderBy("capturedAt", "desc")
-    .limit(limit)
-    .get();
-  return snap.docs.map((d) => d.data() as DonationDoc);
+  const snap = await getDb().collection(col.donations).orderBy("capturedAt", "desc").limit(limit).get();
+  return snap.docs.map((d) => d.data() as DonationDoc).filter((d) => d.status === "captured");
 }
 
 export interface RecordCaptureInput {
