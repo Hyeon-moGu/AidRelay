@@ -12,7 +12,11 @@ const EnvSchema = z.object({
   ANTHROPIC_API_KEY: z.string().min(1),
 
   FIREBASE_PROJECT_ID: z.string().min(1),
-  GOOGLE_APPLICATION_CREDENTIALS: z.string().min(1),
+  /**
+   * Path to a service-account JSON key. Optional: leave it empty to use Application Default Credentials —
+   * `gcloud auth application-default login` on a laptop, or the service account attached to the Cloud Run service.
+   */
+  GOOGLE_APPLICATION_CREDENTIALS: z.string().optional(),
   GCS_BUCKET: z.string().min(1),
 
   APP_URL: z.url(),

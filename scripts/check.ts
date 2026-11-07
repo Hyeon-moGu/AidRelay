@@ -81,19 +81,27 @@ async function main() {
     return `${mine.id} → ${mine.url} (${mine.event_types?.length ?? 0} event types)`;
   });
 
-  await step("firestore", ["FIREBASE_PROJECT_ID", "GOOGLE_APPLICATION_CREDENTIALS"], async () => {
+  const credentialHint = env.GOOGLE_APPLICATION_CREDENTIALS
+    ? `key file ${env.GOOGLE_APPLICATION_CREDENTIALS}`
+    : "Application Default Credentials (gcloud auth application-default login, or the Cloud Run service account)";
+
+  await step("firestore", ["FIREBASE_PROJECT_ID"], async () => {
     const { applicationDefault, getApps, initializeApp } = await import("firebase-admin/app");
     const { getFirestore } = await import("firebase-admin/firestore");
     const app = getApps()[0] ?? initializeApp({ credential: applicationDefault(), projectId: env.FIREBASE_PROJECT_ID });
     const ref = getFirestore(app).collection("_health").doc(`check-${Date.now()}`);
-    await ref.set({ at: new Date().toISOString() });
+    try {
+      await ref.set({ at: new Date().toISOString() });
+    } catch (err) {
+      throw new Error(`${err instanceof Error ? err.message.split("\n")[0] : String(err)} — using ${credentialHint}`);
+    }
     const snap = await ref.get();
     await ref.delete();
     if (!snap.exists) throw new Error("wrote a document but could not read it back");
-    return `project ${env.FIREBASE_PROJECT_ID}: write, read and delete ok`;
+    return `project ${env.FIREBASE_PROJECT_ID}: write, read and delete ok via ${credentialHint}`;
   });
 
-  await step("gcs", ["GCS_BUCKET", "FIREBASE_PROJECT_ID", "GOOGLE_APPLICATION_CREDENTIALS"], async () => {
+  await step("gcs", ["GCS_BUCKET", "FIREBASE_PROJECT_ID"], async () => {
     const { Storage } = await import("@google-cloud/storage");
     const file = new Storage({ projectId: env.FIREBASE_PROJECT_ID }).bucket(env.GCS_BUCKET!).file(`_health/check-${Date.now()}.txt`);
     await file.save(Buffer.from("ok"), { contentType: "text/plain", resumable: false });
