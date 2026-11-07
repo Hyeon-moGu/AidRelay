@@ -56,7 +56,7 @@ export interface FundChangeMeta {
 }
 
 /**
- * Reserves `amountCents` for a case before any payout (AGENTS.md §1.4). Idempotent: reserving the
+ * Reserves `amountCents` for a case before any payout. Idempotent: reserving the
  * same amount twice is a no-op; a different amount replaces the earlier reservation.
  * Throws InsufficientFundsError instead of ever overdrawing.
  */

@@ -1,4 +1,4 @@
-// Firestore document shapes (AGENTS.md §5). Money is integer cents; field names are camelCase.
+// Firestore document shapes. Money is integer cents; field names are camelCase.
 import type { Timestamp } from "firebase-admin/firestore";
 import type { CaseStatus, Decision, RedFlag } from "@/lib/agent/schema";
 
@@ -154,7 +154,7 @@ export type PayoutStatus =
 
 export interface PayoutDoc {
   caseId: string;
-  /** `${caseId}-${token prefix}`: unique per case instance, so reseeds never collide on PayPal's idempotency window. One payout per case is enforced by this document's existence (AGENTS.md §1.3). */
+  /** `${caseId}-${token prefix}`: unique per case instance, so reseeds never collide on PayPal's idempotency window. One payout per case is enforced by this document's existence. */
   senderBatchId: string;
   payoutBatchId?: string;
   payoutItemId?: string;

@@ -20,8 +20,8 @@ RUN addgroup -S app && adduser -S app -G app
 COPY --from=build --chown=app:app /app/.next/standalone ./
 COPY --from=build --chown=app:app /app/.next/static ./.next/static
 COPY --from=build --chown=app:app /app/public ./public
-# docs/policy.md is read at runtime by the agent (lib/agent/policy.ts).
-COPY --from=build --chown=app:app /app/docs ./docs
+# policy.md is read at runtime by the agent (lib/agent/policy.ts).
+COPY --from=build --chown=app:app /app/policy.md ./policy.md
 USER app
 EXPOSE 8080
 CMD ["node", "server.js"]

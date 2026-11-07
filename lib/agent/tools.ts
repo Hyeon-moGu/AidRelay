@@ -1,4 +1,4 @@
-// The Case Officer's tools (AGENTS.md §8). Every call is timed, written to agent_runs for the activity
+// The Case Officer's tools. Every call is timed, written to agent_runs for the activity
 // feed, and, when it changes state, audited with the policy clause it relied on.
 // The model never chooses an amount: amounts come from the policy (tier + P-6) or from a human.
 import { FieldValue, Timestamp } from "firebase-admin/firestore";

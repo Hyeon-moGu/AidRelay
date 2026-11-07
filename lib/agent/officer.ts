@@ -1,4 +1,4 @@
-// runCaseOfficer(trigger): the event-driven agent (AGENTS.md §8, docs/CONCEPT.md §5).
+// runCaseOfficer(trigger): the event-driven agent.
 // Model sessions for case evaluation and allocation; payout webhooks are reconciled in code.
 import { generateText, stepCountIs } from "ai";
 import { Timestamp } from "firebase-admin/firestore";

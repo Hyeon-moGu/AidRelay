@@ -1,4 +1,4 @@
-// Server-only PayPal REST client. All secret-bearing PayPal calls live under lib/paypal/* (AGENTS.md §11).
+// Server-only PayPal REST client. All secret-bearing PayPal calls live under lib/paypal/*.
 import { getEnv } from "@/lib/env";
 
 const BASE_URL = {

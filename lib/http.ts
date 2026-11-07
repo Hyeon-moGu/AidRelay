@@ -1,4 +1,4 @@
-// API routes return `{ ok, data | error }` and zod-validate every input (AGENTS.md §11).
+// API routes return `{ ok, data | error }` and zod-validate every input.
 import { NextResponse } from "next/server";
 import { ZodError, type ZodType } from "zod";
 import { PayPalError } from "@/lib/paypal/client";

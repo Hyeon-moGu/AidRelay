@@ -1,4 +1,4 @@
-// The human-written policy (docs/policy.md) is read by the model on every decision.
+// The human-written policy (policy.md) is read by the model on every decision.
 // The numbers the CODE enforces are mirrored here; tests/policy.test.ts fails if the two drift apart.
 import { readFile } from "node:fs/promises";
 import path from "node:path";
@@ -59,10 +59,10 @@ export function isInsideDeclaredArea(zip: string): boolean {
 
 let policyTextCache: string | undefined;
 
-/** Raw markdown of docs/policy.md, cached for the process lifetime (prompt-cached at the model too). */
+/** Raw markdown of policy.md, cached for the process lifetime (prompt-cached at the model too). */
 export async function loadPolicyText(): Promise<string> {
   if (!policyTextCache) {
-    policyTextCache = await readFile(path.join(process.cwd(), "docs", "policy.md"), "utf8");
+    policyTextCache = await readFile(path.join(process.cwd(), "policy.md"), "utf8");
   }
   return policyTextCache;
 }

@@ -14,13 +14,13 @@ _TODO (Day 4): hosted demo URL, sandbox donor/recipient logins, the 5-minute loo
 
 ## The problem
 
-_TODO: four linked sources from `docs/CONCEPT.md §3`._
+_TODO: four linked sources._
 
 ## How it works
 
 _TODO: architecture diagram (text only), the event-driven agent loop, the guardrails enforced in code._
 
-- The policy the agent follows (published on the ledger): [`docs/policy.md`](docs/policy.md)
+- The policy the agent follows (published on the ledger): [`policy.md`](policy.md)
 
 ## PayPal APIs and AI models used
 

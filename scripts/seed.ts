@@ -10,7 +10,7 @@ try {
 const flags = new Set(process.argv.slice(2));
 console.error(
   [
-    "pnpm seed is not implemented yet (planned for Day 4, AGENTS.md §12).",
+    "pnpm seed is not implemented yet (planned for Day 4).",
     `flags: ${[...flags].join(" ") || "(none)"}`,
     "Contract: --reset wipes this fund's collections + GCS prefix; --demo = reset + everything except C-001;",
     "--placeholders writes labeled gray images. Donations are never seeded (seed/README.md).",

@@ -22,16 +22,16 @@ cp seed/accounts.example.json seed/accounts.json   # fill in sandbox emails
 pnpm seed            # creates the fund (raised = 0), 10 cases, 12 bulk cases, uploads photos
 # Now donate on /donate as DONOR: at least $2,750 if every eligible case should be paid (e.g. $3,000).
 # The seed script cannot do this: an Orders v2 capture needs the buyer's approval in a browser,
-# and the ledger must never show a donation that was not a real sandbox capture (AGENTS.md §11).
+# and the ledger must never show a donation that was not a real sandbox capture.
 pnpm agent:sweep     # lets the Case Officer process everything
 pnpm seed --reset    # wipes Firestore collections + GCS prefix for this fund and reseeds (donate again afterwards)
 ```
 
 Expected after `agent:sweep` with ≥ $2,750 raised: C-001, C-002, C-006 and the 8 `tier2_clean` bulk cases → `paid` (11 × $250 = $2,750); C-003, C-004, C-005, C-009, C-010 and the 4 `tier3_displaced` bulk cases → `needs_review`; C-007, C-008 → `needs_info`. With less raised, eligible cases beyond the balance → `parked` (first-come) and are paid on the next donation. `tests/seed.test.ts` asserts these against `_expected`.
 
-Share paid without a human once the operator approves the six-row batch: 11 of 17 (65%), the figure `docs/CONCEPT.md §8` promises.
+Share paid without a human once the operator approves the six-row batch: 11 of 17 (65%).
 
-## Demo state (the arithmetic behind `docs/DEMO.md`)
+## Demo state (the arithmetic behind the demo video)
 1. `pnpm seed --demo`, resets and seeds everything **except** C-001 (submitted live on camera).
 2. Donate **$4,500 in total** on `/donate` as DONOR (e.g. $3,000 + $1,500).
 3. `pnpm agent:sweep` → C-002, C-006 and the 8 bulk tier-2 cases are paid (10 × $250 = $2,500). **Balance: $2,000.**

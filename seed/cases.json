@@ -5,7 +5,7 @@
     "name": "Cedar County Flood Relief Fund",
     "currency": "USD",
     "policyVersion": "v1",
-    "_note": "Fund starts at raised = 0. Donations are never seeded: an Orders v2 capture needs the donor's browser approval, and the ledger may only show real sandbox captures (AGENTS.md §11). Make them by hand on /donate as DONOR after `pnpm seed`, at least $2,750 for the full sweep, exactly $4,500 for the demo state (seed/README.md)."
+    "_note": "Fund starts at raised = 0. Donations are never seeded: an Orders v2 capture needs the donor's browser approval, and the ledger may only show real sandbox captures. Make them by hand on /donate as DONOR after `pnpm seed`, at least $2,750 for the full sweep, exactly $4,500 for the demo state (seed/README.md)."
   },
   "cases": [
     {

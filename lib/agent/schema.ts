@@ -1,5 +1,5 @@
 // Shared types for cases and the Case Officer's decision.
-// The Decision shape is mirrored in docs/CONCEPT.md §6; keep both in sync (camelCase everywhere).
+// The Decision shape is camelCase everywhere.
 //
 // The schema is deliberately permissive on formats (no regex / length / range constraints): the
 // Anthropic provider strips those from the JSON schema it sends, so they would only be enforced
@@ -20,7 +20,7 @@ export const CASE_STATUSES = [
 ] as const;
 export type CaseStatus = (typeof CASE_STATUSES)[number];
 
-/** Statuses the agent is allowed to write. `rejected` is deliberately absent (AGENTS.md §1.2). */
+/** Statuses the agent is allowed to write. `rejected` is deliberately absent. */
 export const AGENT_WRITABLE_STATUSES: readonly CaseStatus[] = CASE_STATUSES.filter(
   (s) => s !== "rejected",
 );

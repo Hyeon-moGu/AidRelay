@@ -8,7 +8,7 @@ import {
   parsePayoutEvent,
 } from "@/lib/paypal/payouts";
 
-describe("buildPayoutRequest (AGENTS.md §6 call shape)", () => {
+describe("buildPayoutRequest", () => {
   it("keys the batch on the per-instance id, the item on the case id, and formats cents as a decimal string", () => {
     const body = buildPayoutRequest({
       caseId: "C-001",

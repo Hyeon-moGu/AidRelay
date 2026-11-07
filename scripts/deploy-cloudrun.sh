@@ -34,6 +34,6 @@ node scripts/cloudrun-env.mjs "$URL"
 gcloud run services update "$SERVICE" --region "$REGION" --env-vars-file deploy/env.yaml >/dev/null
 echo "APP_URL set to $URL"
 echo
-echo "Next: register the PayPal webhook at ${URL}/api/webhooks/paypal (docs/SETUP.md step 4),"
+echo "Next: register the PayPal webhook at ${URL}/api/webhooks/paypal,"
 echo "put its id in .env as PAYPAL_WEBHOOK_ID, then run:"
 echo "  gcloud run services update $SERVICE --region $REGION --update-env-vars PAYPAL_WEBHOOK_ID=<id>"

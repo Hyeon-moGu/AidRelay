@@ -1,4 +1,4 @@
-// Applicant-facing strings (docs/policy.md §6: plain, short, in the applicant's language). EN/ES in the demo.
+// Applicant-facing strings (policy.md §6: plain, short, in the applicant's language). EN/ES in the demo.
 export type Lang = "en" | "es";
 
 export function normalizeLang(lang: string | undefined | null): Lang {

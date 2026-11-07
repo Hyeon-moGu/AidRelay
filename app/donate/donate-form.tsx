@@ -1,7 +1,7 @@
 "use client";
 
 // PayPal JS SDK (v5 Buttons) donate flow: createOrder → server creates the Orders v2 order,
-// onApprove → server captures it and records the donation. See docs/CONCEPT.md §7 "Donor".
+// onApprove → server captures it and records the donation.
 import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";

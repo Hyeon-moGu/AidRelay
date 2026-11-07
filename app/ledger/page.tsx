@@ -80,7 +80,7 @@ export default async function LedgerPage() {
       ) : null}
 
       <p className="text-xs text-zinc-500">
-        Policy: <code>docs/policy.md</code> (published here on Day 3). Sandbox only.
+        Policy: <code>policy.md</code> (published here on Day 3). Sandbox only.
       </p>
     </main>
   );

@@ -3,7 +3,7 @@ import { applicationDefault, getApps, initializeApp } from "firebase-admin/app";
 import { getFirestore, type Firestore } from "firebase-admin/firestore";
 import { getEnv } from "@/lib/env";
 
-/** Collection names from AGENTS.md §5 (+ webhook_events for idempotent webhook handling). */
+/** Firestore collection names. */
 export const col = {
   fund: "fund",
   cases: "cases",

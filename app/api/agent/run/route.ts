@@ -1,4 +1,4 @@
-// Internal: run the Case Officer for an event. Protected by AGENT_INTERNAL_SECRET (AGENTS.md §4).
+// Internal: run the Case Officer for an event. Protected by AGENT_INTERNAL_SECRET.
 import { timingSafeEqual } from "node:crypto";
 import { z } from "zod";
 import { runCaseOfficer } from "@/lib/agent/officer";

@@ -14,7 +14,7 @@ const conceptExample = {
 };
 
 describe("DecisionSchema", () => {
-  it("accepts the docs/CONCEPT.md §6 example", () => {
+  it("accepts the documented example", () => {
     expect(DecisionSchema.parse(conceptExample)).toEqual(conceptExample);
   });
 
@@ -36,7 +36,7 @@ describe("DecisionSchema", () => {
 });
 
 describe("AGENT_WRITABLE_STATUSES", () => {
-  it("never includes rejected (AGENTS.md §1.2)", () => {
+  it("never includes rejected", () => {
     expect(AGENT_WRITABLE_STATUSES).not.toContain("rejected");
     expect(AGENT_WRITABLE_STATUSES).toContain("needs_review");
   });

@@ -4,7 +4,7 @@ import type { AuditDoc } from "@/lib/db/types";
 
 export type AuditInput = Omit<AuditDoc, "ts">;
 
-/** Every state change is written to audit_log with the policy clause it relied on (AGENTS.md §1.6). */
+/** Every state change is written to audit_log with the policy clause it relied on. */
 export async function writeAudit(input: AuditInput): Promise<string> {
   const ref = getDb().collection(col.auditLog).doc();
   await ref.create({ ...input, ts: Timestamp.now() } satisfies AuditDoc);

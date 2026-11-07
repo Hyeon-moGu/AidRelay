@@ -1,4 +1,4 @@
-// PayPal webhook receiver: verify signature → claim event id → handle → mark handled (AGENTS.md §6).
+// PayPal webhook receiver: verify signature → claim event id → handle → mark handled.
 // PayPal retries any non-2xx response, so an event is only marked handled once its side effects committed.
 // Payout events are reconciled INLINE (deterministic, no model) so a lost self-call can never lose `paid`.
 import { runCaseOfficer } from "@/lib/agent/officer";

@@ -1,4 +1,4 @@
-// Webhook signature verification (AGENTS.md §6.5): every event is verified with PayPal before it is processed.
+// Webhook signature verification: every event is verified with PayPal before it is processed.
 import { getEnv } from "@/lib/env";
 import { paypalFetch } from "@/lib/paypal/client";
 

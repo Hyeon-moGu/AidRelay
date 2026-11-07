@@ -36,7 +36,7 @@ export async function signedReadUrl(objectPath: string, minutes = 15): Promise<s
   return url;
 }
 
-/** ≤ 1024 px on the long side, JPEG, EXIF-rotated, what the model sees (AGENTS.md §2, §8). */
+/** ≤ 1024 px on the long side, JPEG, EXIF-rotated, what the model sees. */
 export async function prepareImageForModel(input: Buffer): Promise<{ data: Buffer; mediaType: "image/jpeg" }> {
   const data = await sharp(input)
     .rotate()

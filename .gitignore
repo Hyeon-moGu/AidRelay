@@ -52,8 +52,5 @@ deploy/env.yaml
 
 # local-only planning docs and assistant config (never published)
 AGENTS.md
-docs/CONCEPT.md
-docs/DEMO.md
-docs/SETUP.md
-docs/REVIEW-*.md
+docs/
 .claude/

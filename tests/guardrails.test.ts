@@ -58,7 +58,7 @@ describe("limitsFromEnv mirrors the policy", () => {
   });
 });
 
-describe("assertAgentStatusWrite (AGENTS.md §1.2)", () => {
+describe("assertAgentStatusWrite", () => {
   it("refuses rejected and allows everything else", () => {
     expect(codeOf(() => assertAgentStatusWrite("rejected"))).toBe("agent_cannot_reject");
     for (const s of ["new", "evaluating", "needs_info", "needs_review", "approved", "parked", "paying", "paid"] as const) {

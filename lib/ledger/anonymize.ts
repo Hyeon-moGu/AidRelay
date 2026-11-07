@@ -1,4 +1,4 @@
-// Keeps PII out of stored and published records (AGENTS.md §1.5, docs/policy.md §7).
+// Keeps PII out of stored and published records.
 
 const PII_KEYS = new Set([
   "payer",

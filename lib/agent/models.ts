@@ -1,4 +1,4 @@
-// Model wiring (AGENTS.md §2): Sonnet for the agent loop and decisions, Haiku for the cheap pre-screen.
+// Model wiring: Sonnet for the agent loop and decisions, Haiku for the cheap pre-screen.
 import { createAnthropic } from "@ai-sdk/anthropic";
 import { getEnv } from "@/lib/env";
 

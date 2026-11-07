@@ -10,9 +10,9 @@ import {
   POLICY,
 } from "@/lib/agent/policy";
 
-const policyMd = readFileSync(path.join(process.cwd(), "docs", "policy.md"), "utf8");
+const policyMd = readFileSync(path.join(process.cwd(), "policy.md"), "utf8");
 
-describe("docs/policy.md and lib/agent/policy.ts agree", () => {
+describe("policy.md and lib/agent/policy.ts agree", () => {
   it("tier amounts match the §3 table", () => {
     for (const [tier, cents] of Object.entries(POLICY.tierCents)) {
       const dollars = (cents / 100).toFixed(0);

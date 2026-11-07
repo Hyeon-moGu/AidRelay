@@ -1,4 +1,4 @@
-// Money is integer minor units (cents) everywhere inside the app (AGENTS.md §11).
+// Money is integer minor units (cents) everywhere inside the app.
 // Convert to/from PayPal's decimal strings only at the edge.
 
 export function assertCents(n: number): void {

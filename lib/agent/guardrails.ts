@@ -1,4 +1,4 @@
-// Rules the agent cannot talk its way around (AGENTS.md §1). Pure functions; every branch is unit-tested.
+// Rules the agent cannot talk its way around. Pure functions; every branch is unit-tested.
 import { AGENT_WRITABLE_STATUSES, type CaseStatus, type Decision, type RedFlag } from "@/lib/agent/schema";
 import { humanMaxCents, POLICY, type Tier } from "@/lib/agent/policy";
 
@@ -33,7 +33,7 @@ export class GuardrailError extends Error {
   }
 }
 
-/** AGENTS.md §1.2, the agent may never set `rejected`. (The full state machine is in transitions.ts.) */
+/** The agent may never set `rejected`. (The full state machine is in transitions.ts.) */
 export function assertAgentStatusWrite(status: CaseStatus): void {
   if (!AGENT_WRITABLE_STATUSES.includes(status)) {
     throw new GuardrailError("agent_cannot_reject", `agent may not set status ${status}`, "P-9");
