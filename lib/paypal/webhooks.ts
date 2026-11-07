@@ -21,10 +21,15 @@ export function readWebhookHeaders(h: Headers): PayPalWebhookHeaders | null {
 }
 
 /** POST /v1/notifications/verify-webhook-signature. `rawBody` must be the exact bytes PayPal sent. */
+export function webhookConfigured(): boolean {
+  return !!getEnv().PAYPAL_WEBHOOK_ID;
+}
+
 export async function verifyWebhookSignature(
   headers: PayPalWebhookHeaders,
   rawBody: string,
 ): Promise<boolean> {
+  if (!webhookConfigured()) throw new Error("PAYPAL_WEBHOOK_ID is not set");
   const res = await paypalFetch<{ verification_status: "SUCCESS" | "FAILURE" }>(
     "/v1/notifications/verify-webhook-signature",
     {

@@ -18,7 +18,8 @@ export default async function LedgerPage() {
     fund = await getFund();
     donations = await listRecentDonations(20);
   } catch (err) {
-    error = err instanceof Error ? err.message : String(err);
+    console.error("[ledger] could not load the fund", err);
+    error = "the fund's records could not be loaded (see the server log)";
   }
 
   return (
@@ -33,7 +34,7 @@ export default async function LedgerPage() {
 
       {error ? (
         <p className="rounded-md border border-amber-300 bg-amber-50 p-4 text-sm text-amber-900 dark:border-amber-700 dark:bg-amber-950 dark:text-amber-100">
-          The ledger is not connected to Firestore yet: {error}
+          The ledger is temporarily unavailable: {error}
         </p>
       ) : fund ? (
         <>

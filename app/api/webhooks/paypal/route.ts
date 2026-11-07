@@ -13,12 +13,13 @@ import {
   type WebhookEvent,
 } from "@/lib/paypal/events";
 import { getCapture } from "@/lib/paypal/orders";
-import { readWebhookHeaders, verifyWebhookSignature } from "@/lib/paypal/webhooks";
+import { readWebhookHeaders, verifyWebhookSignature, webhookConfigured } from "@/lib/paypal/webhooks";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 export async function POST(req: Request) {
+  if (!webhookConfigured()) return fail("webhook not configured: set PAYPAL_WEBHOOK_ID", 503);
   const rawBody = await req.text();
   const headers = readWebhookHeaders(req.headers);
   if (!headers) return fail("missing PayPal signature headers", 400);

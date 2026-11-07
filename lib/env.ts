@@ -7,7 +7,8 @@ const EnvSchema = z.object({
   PAYPAL_ENV: z.literal("sandbox").default("sandbox"),
   PAYPAL_CLIENT_ID: z.string().min(1),
   PAYPAL_CLIENT_SECRET: z.string().min(1),
-  PAYPAL_WEBHOOK_ID: z.string().min(1),
+  /** Set once the webhook exists (needs a public URL). Until then the webhook route answers 503 and everything else runs. */
+  PAYPAL_WEBHOOK_ID: z.string().optional(),
 
   ANTHROPIC_API_KEY: z.string().min(1),
 
