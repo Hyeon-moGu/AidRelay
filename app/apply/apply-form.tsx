@@ -1,10 +1,14 @@
 "use client";
 
 // Three screens: contact, what happened, photos + review. English / Spanish. Posts multipart to /api/apply
-// and sends the applicant to their status link.
+// and sends the applicant to their status link. Built for a phone first: 44px targets, 16px inputs,
+// inline errors with focus on the first one.
+import { Camera, FileText, LoaderCircle, X } from "lucide-react";
 import { useRouter } from "next/navigation";
-import { useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { Brand } from "@/components/site/brand";
 import { Button } from "@/components/ui/button";
+import { Field, Input, Textarea } from "@/components/ui/input";
 import type { Prefill } from "@/lib/demo-prefill";
 import { MESSAGES, type Lang } from "@/lib/i18n/messages";
 
@@ -12,40 +16,69 @@ const MAX_PHOTOS = 3;
 const MAX_FILE_BYTES = 10 * 1024 * 1024;
 
 type Fields = Omit<Prefill, "lang">;
+type ErrorKey = keyof Fields | "photos" | "form";
 
 const EMPTY: Fields = { name: "", email: "", phone: "", address: "", zip: "", householdSize: "", requestedAmountDollars: "", narrative: "" };
+
+const mb = (bytes: number) => `${(bytes / 1024 / 1024).toFixed(1)} MB`;
 
 export function ApplyForm({ initialLang, prefill }: { initialLang: Lang; prefill?: Prefill }) {
   const router = useRouter();
   const [lang, setLang] = useState<Lang>(initialLang);
-  const [step, setStep] = useState(0);
+  const [step, setStepRaw] = useState(0);
+  const [moved, setMoved] = useState(false);
+  const setStep = (n: number) => {
+    setMoved(true);
+    setStepRaw(n);
+  };
   const [f, setF] = useState<Fields>(prefill ? { ...EMPTY, ...prefill } : EMPTY);
   const [photos, setPhotos] = useState<File[]>([]);
   const [doc, setDoc] = useState<File | null>(null);
-  const [errors, setErrors] = useState<Partial<Record<keyof Fields | "photos" | "form", string>>>({});
+  const [errors, setErrors] = useState<Partial<Record<ErrorKey, string>>>({});
   const [busy, setBusy] = useState(false);
-  const photoInput = useRef<HTMLInputElement>(null);
+  const heading = useRef<HTMLHeadingElement>(null);
+  const firstRender = useRef(true);
   const t = MESSAGES[lang];
   const a = t.apply;
 
-  const set = (k: keyof Fields) => (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => setF({ ...f, [k]: e.target.value });
+  const previews = useMemo(() => photos.map((p) => ({ file: p, url: URL.createObjectURL(p) })), [photos]);
+  useEffect(() => () => previews.forEach((p) => URL.revokeObjectURL(p.url)), [previews]);
+
+  useEffect(() => {
+    if (firstRender.current) {
+      firstRender.current = false;
+      return;
+    }
+    heading.current?.focus();
+  }, [step]);
+
+  useEffect(() => {
+    document.documentElement.lang = lang;
+  }, [lang]);
+
+  const set = (k: keyof Fields) => (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
+    setF({ ...f, [k]: e.target.value });
+    if (errors[k]) setErrors({ ...errors, [k]: undefined });
+  };
 
   function validateStep(s: number): boolean {
     const e: typeof errors = {};
     if (s === 0) {
       if (!f.name.trim()) e.name = a.errors.required;
-      if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(f.email)) e.email = a.errors.email;
+      if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(f.email.trim())) e.email = a.errors.email;
       if (!/^\d{5}(-\d{4})?$/.test(f.zip.trim())) e.zip = a.errors.zip;
     }
-    if (s === 1) {
-      if (f.narrative.trim().length < 10) e.narrative = a.errors.required;
-    }
+    if (s === 1 && f.narrative.trim().length < 10) e.narrative = a.errors.required;
     if (s === 2) {
       if (photos.length === 0) e.photos = a.errors.photos;
       if ([...photos, ...(doc ? [doc] : [])].some((x) => x.size > MAX_FILE_BYTES)) e.photos = a.errors.tooLarge;
     }
     setErrors(e);
-    return Object.keys(e).length === 0;
+    if (Object.keys(e).length > 0) {
+      requestAnimationFrame(() => document.querySelector<HTMLElement>('[aria-invalid="true"]')?.focus());
+      return false;
+    }
+    return true;
   }
 
   async function submit() {
@@ -55,7 +88,7 @@ export function ApplyForm({ initialLang, prefill }: { initialLang: Lang; prefill
     try {
       const body = new FormData();
       body.set("lang", lang);
-      for (const [k, v] of Object.entries(f)) body.set(k, v);
+      for (const [k, v] of Object.entries(f)) body.set(k, v.trim());
       for (const p of photos) body.append("photos", p);
       if (doc) body.append("docs", doc);
       const res = await fetch("/api/apply", { method: "POST", body });
@@ -68,145 +101,221 @@ export function ApplyForm({ initialLang, prefill }: { initialLang: Lang; prefill
     }
   }
 
-  const field = (k: keyof Fields, label: string, opts: { hint?: string; optional?: boolean; type?: string; inputMode?: "numeric" | "decimal" | "email" | "tel" } = {}) => (
-    <label className="block space-y-1">
-      <span className="text-sm font-medium">
-        {label}
-        {opts.optional && <span className="ml-1 text-xs text-zinc-500">({a.optional})</span>}
-      </span>
-      <input
-        type={opts.type ?? "text"}
-        inputMode={opts.inputMode}
-        value={f[k]}
-        onChange={set(k)}
-        className="w-full rounded-md border border-zinc-300 bg-transparent px-3 py-2 dark:border-zinc-700"
-      />
-      {opts.hint && <span className="block text-xs text-zinc-500">{opts.hint}</span>}
-      {errors[k] && <span className="block text-xs text-red-600">{errors[k]}</span>}
-    </label>
+  function onSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    if (busy) return;
+    if (step < 2) {
+      if (validateStep(step)) setStep(step + 1);
+    } else void submit();
+  }
+
+  function addPhotos(e: React.ChangeEvent<HTMLInputElement>) {
+    const picked = Array.from(e.target.files ?? []);
+    e.target.value = "";
+    setPhotos((prev) => [...prev, ...picked].slice(0, MAX_PHOTOS));
+    if (errors.photos) setErrors({ ...errors, photos: undefined });
+  }
+
+  const text = (k: keyof Fields, label: string, opts: { hint?: string; optional?: boolean; type?: string; inputMode?: React.HTMLAttributes<HTMLInputElement>["inputMode"]; autoComplete?: string; placeholder?: string } = {}) => (
+    <Field id={`f-${k}`} label={label} optional={opts.optional ? a.optional : undefined} hint={opts.hint} error={errors[k]}>
+      {(aria) => (
+        <Input
+          {...aria}
+          name={k}
+          type={opts.type ?? "text"}
+          inputMode={opts.inputMode}
+          autoComplete={opts.autoComplete ?? "off"}
+          placeholder={opts.placeholder}
+          spellCheck={opts.type === "email" ? false : undefined}
+          autoCapitalize={opts.type === "email" ? "none" : undefined}
+          value={f[k]}
+          onChange={set(k)}
+        />
+      )}
+    </Field>
   );
 
   return (
-    <div className="space-y-6">
-      <header className="space-y-2">
-        <div className="flex items-center justify-between">
-          <p className="text-sm font-medium uppercase tracking-wide text-zinc-500">AidRelay</p>
-          <div className="flex gap-1 text-sm">
-            {(["en", "es"] as Lang[]).map((l) => (
-              <button
-                key={l}
-                type="button"
-                onClick={() => setLang(l)}
-                className={`rounded px-2 py-1 ${lang === l ? "bg-zinc-900 text-white dark:bg-zinc-100 dark:text-zinc-900" : "text-zinc-500"}`}
-              >
-                {l === "en" ? "English" : "Español"}
-              </button>
-            ))}
-          </div>
-        </div>
-        <h1 className="text-2xl font-semibold">{a.title}</h1>
-        <p className="text-sm text-zinc-600 dark:text-zinc-400">{a.intro}</p>
-        <ol className="flex gap-3 text-xs">
-          {a.steps.map((s, i) => (
-            <li key={s} className={i === step ? "font-semibold" : "text-zinc-500"}>
-              {i + 1}. {s}
-            </li>
+    <div className="mx-auto w-full max-w-xl px-4 pb-[calc(env(safe-area-inset-bottom)+2rem)] sm:px-6">
+      <div className="flex h-14 items-center justify-between pt-[env(safe-area-inset-top)]">
+        <Brand />
+        <div role="group" aria-label={a.language} className="flex rounded-lg bg-muted p-0.5 text-[13px]">
+          {(["en", "es"] as Lang[]).map((l) => (
+            <button
+              key={l}
+              type="button"
+              aria-pressed={lang === l}
+              lang={l}
+              onClick={() => setLang(l)}
+              className={`rounded-md px-2.5 py-1.5 font-medium transition-colors ${lang === l ? "bg-card text-foreground shadow-[0_1px_2px_rgba(20,24,28,0.08)]" : "text-muted-foreground hover:text-foreground"}`}
+            >
+              {l === "en" ? "English" : "Español"}
+            </button>
           ))}
-        </ol>
-      </header>
-
-      {step === 0 && (
-        <section className="space-y-4">
-          {field("name", a.name)}
-          {field("email", a.email, { hint: a.emailHint, type: "email", inputMode: "email" })}
-          {field("phone", a.phone, { optional: true, type: "tel", inputMode: "tel" })}
-          {field("address", a.address, { optional: true })}
-          <div className="grid grid-cols-2 gap-4">
-            {field("zip", a.zip, { inputMode: "numeric" })}
-            {field("householdSize", a.householdSize, { optional: true, inputMode: "numeric" })}
-          </div>
-        </section>
-      )}
-
-      {step === 1 && (
-        <section className="space-y-4">
-          <label className="block space-y-1">
-            <span className="text-sm font-medium">{a.narrative}</span>
-            <textarea
-              value={f.narrative}
-              onChange={set("narrative")}
-              rows={7}
-              className="w-full rounded-md border border-zinc-300 bg-transparent px-3 py-2 dark:border-zinc-700"
-            />
-            <span className="block text-xs text-zinc-500">{a.narrativeHint}</span>
-            {errors.narrative && <span className="block text-xs text-red-600">{errors.narrative}</span>}
-          </label>
-          {field("requestedAmountDollars", a.requestedAmount, { optional: true, inputMode: "decimal" })}
-        </section>
-      )}
-
-      {step === 2 && (
-        <section className="space-y-4">
-          <label className="block space-y-1">
-            <span className="text-sm font-medium">{a.photos}</span>
-            <input
-              ref={photoInput}
-              type="file"
-              accept="image/*"
-              multiple
-              onChange={(e) => setPhotos(Array.from(e.target.files ?? []).slice(0, MAX_PHOTOS))}
-              className="block w-full text-sm"
-            />
-            <span className="block text-xs text-zinc-500">{a.photosHint}</span>
-            {photos.length > 0 && (
-              <ul className="flex flex-wrap gap-2 pt-1">
-                {photos.map((p) => (
-                  <li key={p.name} className="rounded bg-zinc-100 px-2 py-1 text-xs dark:bg-zinc-800">
-                    {p.name} · {(p.size / 1024 / 1024).toFixed(1)} MB
-                  </li>
-                ))}
-              </ul>
-            )}
-            {errors.photos && <span className="block text-xs text-red-600">{errors.photos}</span>}
-          </label>
-          <label className="block space-y-1">
-            <span className="text-sm font-medium">
-              {a.docs} <span className="text-xs text-zinc-500">({a.optional})</span>
-            </span>
-            <input type="file" accept="image/*" onChange={(e) => setDoc(e.target.files?.[0] ?? null)} className="block w-full text-sm" />
-            <span className="block text-xs text-zinc-500">{a.docsHint}</span>
-          </label>
-          <dl className="grid grid-cols-[auto_1fr] gap-x-4 gap-y-1 rounded-md border border-zinc-200 p-3 text-sm dark:border-zinc-800">
-            <dt className="text-zinc-500">{a.name}</dt>
-            <dd>{f.name}</dd>
-            <dt className="text-zinc-500">{a.email}</dt>
-            <dd>{f.email}</dd>
-            <dt className="text-zinc-500">{a.zip}</dt>
-            <dd>{f.zip}</dd>
-            <dt className="text-zinc-500">{a.householdSize}</dt>
-            <dd>{f.householdSize || "–"}</dd>
-            <dt className="text-zinc-500">{a.requestedAmount}</dt>
-            <dd>{f.requestedAmountDollars ? `$${f.requestedAmountDollars}` : "–"}</dd>
-          </dl>
-          <p className="text-xs text-zinc-500">{a.consent}</p>
-          {errors.form && <p className="rounded-md border border-red-300 bg-red-50 p-3 text-sm text-red-900 dark:border-red-800 dark:bg-red-950 dark:text-red-100">{errors.form}</p>}
-        </section>
-      )}
-
-      <div className="flex justify-between">
-        <Button type="button" variant="outline" disabled={step === 0 || busy} onClick={() => setStep(step - 1)}>
-          {a.back}
-        </Button>
-        {step < 2 ? (
-          <Button type="button" onClick={() => validateStep(step) && setStep(step + 1)}>
-            {step === 1 ? a.review : a.next}
-          </Button>
-        ) : (
-          <Button type="button" disabled={busy} onClick={submit}>
-            {busy ? a.submitting : a.submit}
-          </Button>
-        )}
+        </div>
       </div>
+
+      <main id="main">
+        <header className="mt-6 space-y-3">
+          <p className="text-sm font-medium text-primary tabular-nums">{a.stepOf.replace("{n}", String(step + 1)).replace("{total}", "3")}</p>
+          <h1 className="text-[1.75rem] leading-tight font-semibold tracking-[-0.02em]">{a.title}</h1>
+          <p className="leading-relaxed text-muted-foreground">{a.intro}</p>
+          <ol className="grid grid-cols-3 gap-2 pt-2">
+            {a.steps.map((s, i) => (
+              <li key={s} aria-current={i === step ? "step" : undefined} className="space-y-1.5">
+                <span aria-hidden="true" className={`block h-1 rounded-full transition-colors duration-200 ${i <= step ? "bg-primary" : "bg-border"}`} />
+                <span className={`block text-xs ${i === step ? "font-medium text-foreground" : "text-muted-foreground"}`}>{s}</span>
+              </li>
+            ))}
+          </ol>
+        </header>
+
+        <form noValidate onSubmit={onSubmit} className="mt-6">
+          <div className="rounded-2xl border border-border bg-card p-5 sm:p-6">
+            <h2 ref={heading} tabIndex={-1} className="text-lg font-semibold tracking-tight outline-none">
+              {a.steps[step]}
+            </h2>
+
+            <div key={step} className={`mt-5 space-y-5 ${moved ? "animate-relay-in" : ""}`}>
+              {step === 0 && (
+                <>
+                  {text("name", a.name, { autoComplete: "name", placeholder: "Maria Lopez" })}
+                  {text("email", a.email, { hint: a.emailHint, type: "email", inputMode: "email", autoComplete: "email", placeholder: "name@example.com" })}
+                  {text("phone", a.phone, { optional: true, type: "tel", inputMode: "tel", autoComplete: "tel", placeholder: "(305) 555-0134" })}
+                  {text("address", a.address, { optional: true, autoComplete: "street-address", placeholder: "123 Bay St, Miami" })}
+                  <div className="grid gap-5 sm:grid-cols-2 sm:gap-4">
+                    {text("zip", a.zip, { inputMode: "numeric", autoComplete: "postal-code", placeholder: "33101" })}
+                    {text("householdSize", a.householdSize, { optional: true, inputMode: "numeric", placeholder: "4" })}
+                  </div>
+                </>
+              )}
+
+              {step === 1 && (
+                <>
+                  <Field id="f-narrative" label={a.narrative} hint={a.narrativeHint} error={errors.narrative}>
+                    {(aria) => <Textarea {...aria} name="narrative" rows={7} value={f.narrative} onChange={set("narrative")} />}
+                  </Field>
+                  {text("requestedAmountDollars", a.requestedAmount, { optional: true, inputMode: "decimal", placeholder: "600" })}
+                </>
+              )}
+
+              {step === 2 && (
+                <>
+                  <div className="space-y-2">
+                    <p id="photos-label" className="text-sm font-medium">
+                      {a.photos}
+                    </p>
+                    {photos.length < MAX_PHOTOS && (
+                      <label className="flex cursor-pointer flex-col items-center gap-1.5 rounded-xl border border-dashed border-input/70 bg-muted/50 px-4 py-6 text-center transition-colors hover:border-primary hover:bg-accent/50 has-[:focus-visible]:outline-2 has-[:focus-visible]:outline-offset-2 has-[:focus-visible]:outline-ring">
+                        <Camera aria-hidden="true" className="size-6 text-primary" />
+                        <span className="font-medium text-primary">{a.addPhotos}</span>
+                        <span className="text-[13px] text-muted-foreground">{a.photosHint}</span>
+                        <input
+                          type="file"
+                          accept="image/*"
+                          multiple
+                          onChange={addPhotos}
+                          className="sr-only"
+                          aria-labelledby="photos-label"
+                          aria-invalid={errors.photos ? true : undefined}
+                          aria-describedby={errors.photos ? "photos-error" : undefined}
+                        />
+                      </label>
+                    )}
+                    {previews.length > 0 && (
+                      <ul className="grid grid-cols-3 gap-2">
+                        {previews.map((p, i) => (
+                          <li key={`${p.file.name}-${i}`} className="relative">
+                            {/* eslint-disable-next-line @next/next/no-img-element */}
+                            <img src={p.url} alt="" width={160} height={160} className="aspect-square w-full rounded-lg border border-border object-cover" />
+                            <button
+                              type="button"
+                              aria-label={`${a.remove} ${p.file.name}`}
+                              onClick={() => setPhotos(photos.filter((_, j) => j !== i))}
+                              className="absolute top-1.5 right-1.5 flex size-8 items-center justify-center rounded-full bg-background/90 text-foreground shadow-sm transition-transform active:scale-[0.94]"
+                            >
+                              <X aria-hidden="true" className="size-4" />
+                            </button>
+                            <p className="mt-1 truncate text-[11px] text-muted-foreground tabular-nums">{mb(p.file.size)}</p>
+                          </li>
+                        ))}
+                      </ul>
+                    )}
+                    {errors.photos && (
+                      <p id="photos-error" className="text-[13px] font-medium text-danger">
+                        {errors.photos}
+                      </p>
+                    )}
+                  </div>
+
+                  <div className="space-y-2">
+                    <p className="flex items-baseline gap-1.5 text-sm font-medium">
+                      {a.docs} <span className="text-xs font-normal text-muted-foreground">{a.optional}</span>
+                    </p>
+                    {doc ? (
+                      <div className="flex items-center gap-3 rounded-lg border border-border bg-muted/50 px-3 py-2 text-sm">
+                        <FileText aria-hidden="true" className="size-4 shrink-0 text-muted-foreground" />
+                        <span className="min-w-0 flex-1 truncate">{doc.name}</span>
+                        <span className="text-xs text-muted-foreground tabular-nums">{mb(doc.size)}</span>
+                        <button type="button" aria-label={`${a.remove} ${doc.name}`} onClick={() => setDoc(null)} className="flex size-8 items-center justify-center rounded-md hover:bg-muted">
+                          <X aria-hidden="true" className="size-4" />
+                        </button>
+                      </div>
+                    ) : (
+                      <label className="inline-flex h-10 cursor-pointer items-center gap-2 rounded-lg border border-input/60 bg-card px-3 text-sm font-medium transition-colors hover:bg-muted has-[:focus-visible]:outline-2 has-[:focus-visible]:outline-offset-2 has-[:focus-visible]:outline-ring">
+                        <FileText aria-hidden="true" className="size-4 text-primary" />
+                        {a.addDocument}
+                        <input type="file" accept="image/*" onChange={(e) => setDoc(e.target.files?.[0] ?? null)} className="sr-only" />
+                      </label>
+                    )}
+                    <p className="text-[13px] text-muted-foreground">{a.docsHint}</p>
+                  </div>
+
+                  <div className="rounded-xl bg-muted/60 p-4">
+                    <h3 className="text-sm font-medium">{a.reviewTitle}</h3>
+                    <dl className="mt-2 divide-y divide-border text-sm">
+                      {(
+                        [
+                          [a.name, f.name, false],
+                          [a.email, f.email, true],
+                          [a.zip, f.zip, false],
+                          [a.householdSize, f.householdSize || "–", false],
+                          [a.requestedAmount, f.requestedAmountDollars ? `$${f.requestedAmountDollars}` : "–", false],
+                        ] as const
+                      ).map(([label, value, noTranslate]) => (
+                        <div key={label} className="flex justify-between gap-4 py-1.5">
+                          <dt className="shrink-0 text-muted-foreground">{label}</dt>
+                          <dd className="min-w-0 truncate text-right tabular-nums" translate={noTranslate ? "no" : undefined}>
+                            {value}
+                          </dd>
+                        </div>
+                      ))}
+                    </dl>
+                  </div>
+                  <p className="text-[13px] leading-relaxed text-muted-foreground">{a.consent}</p>
+                  {errors.form && (
+                    <p role="alert" className="rounded-lg bg-danger-soft p-3 text-sm text-danger">
+                      {errors.form}
+                    </p>
+                  )}
+                </>
+              )}
+            </div>
+          </div>
+
+          <div className="mt-5 flex items-center gap-3">
+            {step > 0 && (
+              <Button type="button" size="lg" variant="outline" disabled={busy} onClick={() => setStep(step - 1)}>
+                {a.back}
+              </Button>
+            )}
+            <Button type="submit" size="lg" className="ml-auto min-w-36 flex-1 sm:flex-none" disabled={busy}>
+              {busy && <LoaderCircle aria-hidden="true" className="animate-spin" />}
+              {step === 0 ? a.next : step === 1 ? a.review : busy ? a.submitting : a.submit}
+            </Button>
+          </div>
+        </form>
+      </main>
     </div>
   );
 }

@@ -1,9 +1,13 @@
 // Public transparency ledger: totals, live metrics, anonymized rows, donations, and the published policy.
+import { ArrowUpRight } from "lucide-react";
 import type { Metadata } from "next";
 import Link from "next/link";
 import { marked } from "marked";
+import { FundFlow } from "@/components/fund-flow";
+import { SiteFooter } from "@/components/site/site-footer";
+import { SiteHeader } from "@/components/site/site-header";
+import { duration, money, moneyWhole, num, percent, plural, utc } from "@/lib/format";
 import { buildLedger, type Ledger } from "@/lib/ledger/public";
-import { formatMoney } from "@/lib/money";
 import { LedgerGridClient } from "./ledger-grid-client";
 
 export const metadata: Metadata = { title: "Public ledger · AidRelay" };
@@ -11,111 +15,172 @@ export const dynamic = "force-dynamic";
 
 export default async function LedgerPage() {
   let ledger: Ledger | undefined;
-  let error: string | undefined;
   try {
     ledger = await buildLedger();
   } catch (err) {
     console.error("[ledger] could not load the fund", err);
-    error = "the fund's records could not be loaded (see the server log)";
   }
 
   return (
-    <main className="mx-auto flex min-h-screen max-w-5xl flex-col gap-10 px-6 py-12">
-      <header className="space-y-2">
-        <p className="text-sm font-medium uppercase tracking-wide text-zinc-500">AidRelay</p>
-        <h1 className="text-3xl font-semibold">Public ledger{ledger ? ` · ${ledger.fund.name}` : ""}</h1>
-        <p className="text-zinc-600 dark:text-zinc-400">
-          Every dollar in and out of the fund, with its PayPal record id. No names, no addresses, no contact details. The policy the
-          Case Officer follows is published below, unchanged.
-        </p>
-      </header>
+    <div className="flex min-h-dvh flex-col">
+      <SiteHeader />
+      <main id="main" className="mx-auto w-full max-w-6xl flex-1 space-y-12 px-4 py-10 sm:px-6 sm:py-14">
+        <header className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
+          <div className="space-y-3">
+            <p className="text-sm font-medium text-primary">Public ledger</p>
+            <h1 className="text-3xl font-semibold tracking-[-0.025em] sm:text-4xl">{ledger?.fund.name ?? "The relief fund"}</h1>
+            <p className="max-w-[62ch] leading-relaxed text-muted-foreground">
+              Every dollar in and out of the fund, each with its PayPal record id. No names, no addresses, no contact details. The policy the Case
+              Officer follows is published below, unchanged.
+            </p>
+          </div>
+          {ledger && (
+            <p className="flex items-center gap-3 text-[13px] text-muted-foreground">
+              <span>Updated {utc(ledger.generatedAt)}</span>
+              <Link href="/api/ledger" className="inline-flex items-center gap-1 font-medium text-primary hover:underline">
+                JSON
+                <ArrowUpRight aria-hidden="true" className="size-3.5" />
+              </Link>
+            </p>
+          )}
+        </header>
 
-      {error || !ledger ? (
-        <p className="rounded-md border border-amber-300 bg-amber-50 p-4 text-sm text-amber-900 dark:border-amber-700 dark:bg-amber-950 dark:text-amber-100">
-          The ledger is temporarily unavailable: {error}
-        </p>
-      ) : (
-        <>
-          <section className="grid gap-3 sm:grid-cols-4">
-            <Stat label="Raised" value={formatMoney(ledger.fund.raisedCents, ledger.fund.currency)} />
-            <Stat label="Paid out" value={formatMoney(ledger.fund.paidCents, ledger.fund.currency)} sub={`${ledger.metrics.casesPaid} household(s)`} />
-            <Stat label="Reserved" value={formatMoney(ledger.fund.reservedCents, ledger.fund.currency)} sub={`${ledger.metrics.casesWaiting} waiting for funds`} />
-            <Stat label="Available" value={formatMoney(ledger.fund.balanceCents, ledger.fund.currency)} sub={`${ledger.metrics.casesInReview} in review`} />
-          </section>
-
-          <section className="grid gap-3 sm:grid-cols-4">
-            <Stat label="Median time to cash" value={ledger.metrics.medianMinutesToCash == null ? "–" : `${ledger.metrics.medianMinutesToCash} min`} sub="application → money in PayPal" />
-            <Stat label="Paid without a human" value={ledger.metrics.autoPaidShare == null ? "–" : `${Math.round(ledger.metrics.autoPaidShare * 100)}%`} sub="inside the policy's auto-approve limits" />
-            <Stat label="Duplicate payouts" value={String(ledger.metrics.duplicatePayouts)} sub="one payout per household, enforced" />
-            <Stat label="Payouts with a PayPal batch id" value={ledger.metrics.paidWithBatchIdShare == null ? "–" : `${Math.round(ledger.metrics.paidWithBatchIdShare * 100)}%`} sub="every payment is a PayPal record" />
-          </section>
-
-          <section className="space-y-3">
-            <h2 className="text-lg font-semibold">Grants</h2>
-            {ledger.rows.length === 0 ? (
-              <p className="text-sm text-zinc-500">No grants yet. Rows appear here the moment a case is approved.</p>
-            ) : (
-              <LedgerGridClient rows={ledger.rows} />
-            )}
-          </section>
-
-          <section className="space-y-3">
-            <h2 className="text-lg font-semibold">Donations</h2>
-            {ledger.donations.length === 0 ? (
-              <p className="text-sm text-zinc-500">
-                No donations yet.{" "}
-                <Link href="/donate" className="underline">
-                  Make the first one
-                </Link>
-                .
-              </p>
-            ) : (
-              <table className="w-full text-sm">
-                <thead className="text-left text-zinc-500">
-                  <tr>
-                    <th className="py-1 font-medium">When</th>
-                    <th className="py-1 font-medium">Amount</th>
-                    <th className="py-1 font-medium">PayPal capture</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {ledger.donations.map((d) => (
-                    <tr key={d.captureId} className="border-t border-zinc-200 dark:border-zinc-800">
-                      <td className="py-1">{new Date(d.capturedAt).toLocaleString()}</td>
-                      <td className="py-1">{formatMoney(d.amountCents, d.currency)}</td>
-                      <td className="py-1 font-mono">{d.captureId}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            )}
-          </section>
-
-          <section id="policy" className="space-y-3">
-            <h2 className="text-lg font-semibold">The policy the agent follows (version {ledger.fund.policyVersion})</h2>
-            <p className="text-sm text-zinc-500">Written by the fund&apos;s volunteers. The Case Officer cites these clause ids in every decision; the limits in §5 are enforced in code.</p>
-            <article className="policy rounded-md border border-zinc-200 p-5 text-sm dark:border-zinc-800" dangerouslySetInnerHTML={{ __html: marked.parse(ledger.policyMarkdown) as string }} />
-          </section>
-
-          <p className="text-xs text-zinc-500">
-            Generated {new Date(ledger.generatedAt).toLocaleString()} from the fund&apos;s records. Machine-readable copy:{" "}
-            <Link href="/api/ledger" className="underline">
-              /api/ledger
-            </Link>
-            . Sandbox only.
+        {!ledger ? (
+          <p role="status" className="rounded-xl bg-warning-soft p-4 text-sm text-warning">
+            The ledger is temporarily unavailable because the fund’s records could not be loaded. Try again in a minute.
           </p>
-        </>
-      )}
-    </main>
+        ) : (
+          <>
+            <section aria-label="Fund totals" className="rounded-2xl border border-border bg-card p-6 sm:p-8">
+              <dl className="grid grid-cols-2 gap-x-6 gap-y-6 lg:grid-cols-4">
+                <Money label="Raised" cents={ledger.fund.raisedCents} sub={plural(ledger.donations.length, "donation", "donations")} hero />
+                <Money label="Paid out" cents={ledger.fund.paidCents} sub={plural(ledger.metrics.casesPaid, "household", "households")} />
+                <Money label="Reserved" cents={ledger.fund.reservedCents} sub="approved, being paid" />
+                <Money label="Available" cents={ledger.fund.balanceCents} sub={`${num(ledger.metrics.casesWaiting)} waiting for funds`} />
+              </dl>
+              <FundFlow
+                className="mt-8"
+                raised={ledger.fund.raisedCents}
+                paid={ledger.fund.paidCents}
+                reserved={ledger.fund.reservedCents}
+                available={ledger.fund.balanceCents}
+              />
+            </section>
+
+            <section aria-labelledby="metrics" className="space-y-4">
+              <h2 id="metrics" className="text-lg font-semibold tracking-tight">
+                How the fund is doing
+              </h2>
+              <dl className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+                <Metric label="Median time to cash" value={duration(ledger.metrics.medianMinutesToCash)} sub="from application to money in PayPal" />
+                <Metric label="Paid without a human" value={percent(ledger.metrics.autoPaidShare)} sub="inside the policy’s auto-approve limits" />
+                <Metric label="Duplicate payouts" value={num(ledger.metrics.duplicatePayouts)} sub="one payout per household, enforced" />
+                <Metric label="Payouts with a PayPal batch id" value={percent(ledger.metrics.paidWithBatchIdShare)} sub="every payment is a PayPal record" />
+              </dl>
+            </section>
+
+            <section aria-labelledby="grants" className="space-y-4">
+              <div className="flex flex-wrap items-baseline justify-between gap-2">
+                <h2 id="grants" className="text-lg font-semibold tracking-tight">
+                  Grants
+                </h2>
+                <p className="text-[13px] text-muted-foreground">
+                  {plural(ledger.rows.length, "grant", "grants")} approved or paid · {num(ledger.metrics.casesInReview)} in review, not listed
+                </p>
+              </div>
+              {ledger.rows.length === 0 ? (
+                <Empty>No grants yet. A row appears here the moment a case is approved.</Empty>
+              ) : (
+                <LedgerGridClient rows={ledger.rows} />
+              )}
+            </section>
+
+            <section aria-labelledby="donations" className="space-y-4">
+              <h2 id="donations" className="text-lg font-semibold tracking-tight">
+                Donations
+              </h2>
+              {ledger.donations.length === 0 ? (
+                <Empty>
+                  No donations yet.{" "}
+                  <Link href="/donate" className="font-medium text-primary hover:underline">
+                    Make the first one
+                  </Link>
+                </Empty>
+              ) : (
+                <div className="overflow-x-auto rounded-xl border border-border bg-card">
+                  <table className="w-full min-w-[520px] text-sm">
+                    <thead className="bg-muted text-left text-xs text-muted-foreground">
+                      <tr>
+                        <th scope="col" className="px-4 py-2.5 font-medium">
+                          When
+                        </th>
+                        <th scope="col" className="px-4 py-2.5 text-right font-medium">
+                          Amount
+                        </th>
+                        <th scope="col" className="px-4 py-2.5 font-medium">
+                          PayPal capture id
+                        </th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-border">
+                      {ledger.donations.map((d) => (
+                        <tr key={d.captureId}>
+                          <td className="px-4 py-2.5 whitespace-nowrap text-muted-foreground tabular-nums">{utc(d.capturedAt)}</td>
+                          <td className="px-4 py-2.5 text-right font-medium tabular-nums">{money(d.amountCents)}</td>
+                          <td className="px-4 py-2.5 font-mono text-[13px]" translate="no">
+                            {d.captureId}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </section>
+
+            <section id="policy" aria-labelledby="policy-title" className="scroll-mt-20 space-y-4">
+              <div className="flex flex-wrap items-center gap-3">
+                <h2 id="policy-title" className="text-lg font-semibold tracking-tight">
+                  The policy the agent follows
+                </h2>
+                <span className="rounded-full bg-accent px-2 py-0.5 font-mono text-xs text-accent-foreground">{ledger.fund.policyVersion}</span>
+              </div>
+              <p className="max-w-[72ch] text-sm leading-relaxed text-muted-foreground">
+                Written by the fund’s volunteers. The Case Officer cites these clause ids in every decision, and the limits in §5 are enforced in code.
+              </p>
+              <article
+                className="policy rounded-2xl border border-border bg-card p-6 text-sm sm:p-8"
+                dangerouslySetInnerHTML={{ __html: marked.parse(ledger.policyMarkdown) as string }}
+              />
+            </section>
+          </>
+        )}
+      </main>
+      <SiteFooter />
+    </div>
   );
 }
 
-function Stat({ label, value, sub }: { label: string; value: string; sub?: string }) {
+function Money({ label, cents, sub, hero }: { label: string; cents: number; sub?: string; hero?: boolean }) {
   return (
-    <div className="rounded-md border border-zinc-200 p-3 dark:border-zinc-800">
-      <div className="text-xs uppercase tracking-wide text-zinc-500">{label}</div>
-      <div className="text-xl font-semibold">{value}</div>
-      {sub && <div className="text-xs text-zinc-500">{sub}</div>}
+    <div className="min-w-0">
+      <dt className="text-sm text-muted-foreground">{label}</dt>
+      <dd className={`mt-1 font-semibold tracking-[-0.025em] tabular-nums ${hero ? "text-4xl" : "text-3xl"}`}>{moneyWhole(cents)}</dd>
+      {sub && <dd className="mt-1 text-[13px] text-muted-foreground">{sub}</dd>}
     </div>
   );
+}
+
+function Metric({ label, value, sub }: { label: string; value: string; sub: string }) {
+  return (
+    <div className="rounded-xl bg-muted/70 p-4">
+      <dt className="text-[13px] text-muted-foreground">{label}</dt>
+      <dd className="mt-1.5 text-2xl font-semibold tracking-tight tabular-nums">{value}</dd>
+      <dd className="mt-1 text-[13px] leading-snug text-muted-foreground">{sub}</dd>
+    </div>
+  );
+}
+
+function Empty({ children }: { children: React.ReactNode }) {
+  return <p className="rounded-xl border border-dashed border-border bg-card px-4 py-8 text-center text-sm text-muted-foreground">{children}</p>;
 }

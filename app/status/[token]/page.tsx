@@ -1,13 +1,29 @@
-// The applicant's status page: reachable only by the unguessable token, no login (docs: "status link").
+// The applicant's status page: reachable only by the unguessable token, no login.
+import { Bookmark, Check, CircleCheck, MessageSquare } from "lucide-react";
 import type { Metadata } from "next";
+import { Brand } from "@/components/site/brand";
+import { STATUS_TONE, TONE_CLASS } from "@/components/status-badge";
+import { amountForCase } from "@/lib/agent/tools";
 import { getCaseByToken } from "@/lib/db/repos/cases";
 import { MESSAGES, normalizeLang, TIMELINE } from "@/lib/i18n/messages";
 import { formatMoney } from "@/lib/money";
-import { amountForCase } from "@/lib/agent/tools";
 import { ReplyForm } from "./reply-form";
 
 export const metadata: Metadata = { title: "Your application · AidRelay" };
 export const dynamic = "force-dynamic";
+
+function Shell({ lang, children }: { lang: string; children: React.ReactNode }) {
+  return (
+    <div lang={lang} className="mx-auto min-h-dvh w-full max-w-xl px-4 pb-[calc(env(safe-area-inset-bottom)+2rem)] sm:px-6">
+      <div className="flex h-14 items-center pt-[env(safe-area-inset-top)]">
+        <Brand />
+      </div>
+      <main id="main" className="mt-6 space-y-6">
+        {children}
+      </main>
+    </div>
+  );
+}
 
 export default async function StatusPage({ params, searchParams }: { params: Promise<{ token: string }>; searchParams: Promise<{ lang?: string; sent?: string }> }) {
   const { token } = await params;
@@ -19,67 +35,118 @@ export default async function StatusPage({ params, searchParams }: { params: Pro
 
   if (!c) {
     return (
-      <main className="mx-auto max-w-xl px-6 py-16">
-        <h1 className="text-2xl font-semibold">{s.title}</h1>
-        <p className="mt-4 text-zinc-600 dark:text-zinc-400">{s.notFound}</p>
-      </main>
+      <Shell lang={lang}>
+        <h1 className="text-[1.75rem] font-semibold tracking-[-0.02em]">{s.title}</h1>
+        <p className="leading-relaxed text-muted-foreground">{s.notFound}</p>
+      </Shell>
     );
   }
 
   const reached = TIMELINE.indexOf(c.status === "needs_info" || c.status === "needs_review" || c.status === "parked" ? "evaluating" : c.status);
   const amount = amountForCase(c);
   const showAmount = ["approved", "parked", "paying", "paid"].includes(c.status) && amount !== null;
+  const tone = STATUS_TONE[c.status] ?? "wait";
+  const received = new Intl.DateTimeFormat(lang === "es" ? "es-US" : "en-US", { dateStyle: "medium" }).format(c.timestamps.created.toDate());
+  const rejected = c.status === "rejected";
 
   return (
-    <main className="mx-auto flex min-h-screen max-w-xl flex-col gap-8 px-6 py-12">
-      <header className="space-y-2">
-        <p className="text-sm font-medium uppercase tracking-wide text-zinc-500">AidRelay</p>
-        <h1 className="text-2xl font-semibold">{s.title}</h1>
-        <p className="text-sm text-zinc-500">
-          {s.caseLabel} <span className="font-mono">{c.id}</span> · {s.received} {c.timestamps.created.toDate().toLocaleDateString(lang === "es" ? "es-US" : "en-US")}
+    <Shell lang={lang}>
+      <div>
+        <p className="text-sm text-muted-foreground">
+          {s.caseLabel}{" "}
+          <span className="font-mono text-foreground" translate="no">
+            {c.id}
+          </span>{" "}
+          · {s.received} {received}
         </p>
-      </header>
+        <h1 className="mt-1 text-[1.75rem] font-semibold tracking-[-0.02em]">{s.title}</h1>
+      </div>
 
-      <section className="rounded-md border border-zinc-200 p-4 dark:border-zinc-800">
-        <p className="text-lg font-semibold">{t.status[c.status]}</p>
-        <p className="mt-1 text-sm text-zinc-600 dark:text-zinc-400">{t.statusHint[c.status]}</p>
-        {showAmount && (
-          <p className="mt-3 text-sm">
-            {s.amount}: <strong>{formatMoney(amount)}</strong>
-          </p>
+      <section aria-labelledby="current" className="rounded-2xl border border-border bg-card p-5 sm:p-6">
+        <div className="flex items-start gap-3">
+          <span aria-hidden="true" className={`mt-0.5 flex size-9 shrink-0 items-center justify-center rounded-full ${TONE_CLASS[tone]}`}>
+            {c.status === "paid" ? <CircleCheck className="size-5" /> : <span className="size-2.5 rounded-full bg-current" />}
+          </span>
+          <div className="min-w-0">
+            <h2 id="current" className="text-xl font-semibold tracking-tight">
+              {t.status[c.status]}
+            </h2>
+            <p className="mt-1 leading-relaxed text-muted-foreground">{t.statusHint[c.status]}</p>
+          </div>
+        </div>
+        {(showAmount || c.payoutBatchId) && (
+          <dl className="mt-5 space-y-2 border-t border-border pt-5">
+            {showAmount && (
+              <div className="flex items-baseline justify-between gap-4">
+                <dt className="text-sm text-muted-foreground">{s.amount}</dt>
+                <dd className="text-3xl font-semibold tracking-[-0.02em] tabular-nums">{formatMoney(amount)}</dd>
+              </div>
+            )}
+            {c.payoutBatchId && (
+              <div className="flex items-baseline justify-between gap-4 text-sm">
+                <dt className="text-muted-foreground">{s.batch}</dt>
+                <dd className="truncate font-mono" translate="no">
+                  {c.payoutBatchId}
+                </dd>
+              </div>
+            )}
+          </dl>
         )}
-        {c.payoutBatchId && (
-          <p className="mt-1 text-sm">
-            {s.batch}: <span className="font-mono">{c.payoutBatchId}</span>
-          </p>
-        )}
-      </section>
-
-      <section>
-        <h2 className="mb-2 text-sm font-medium text-zinc-500">{s.timeline}</h2>
-        <ol className="flex flex-wrap gap-2 text-xs">
-          {TIMELINE.map((st, i) => (
-            <li
-              key={st}
-              className={`rounded-full border px-3 py-1 ${i <= reached ? "border-zinc-900 font-medium dark:border-zinc-100" : "border-zinc-300 text-zinc-400 dark:border-zinc-700"} ${c.status === "rejected" && st !== "new" ? "line-through" : ""}`}
-            >
-              {t.status[st]}
-            </li>
-          ))}
-        </ol>
       </section>
 
       {c.applicantMessage && (
-        <section className="rounded-md border border-amber-300 bg-amber-50 p-4 text-sm whitespace-pre-line dark:border-amber-700 dark:bg-amber-950">
-          <h2 className="mb-1 font-medium">{s.message}</h2>
-          {c.applicantMessage.text}
+        <section aria-labelledby="msg" className="rounded-2xl bg-warning-soft p-5">
+          <h2 id="msg" className="flex items-center gap-2 text-sm font-semibold text-warning">
+            <MessageSquare aria-hidden="true" className="size-4" />
+            {s.message}
+          </h2>
+          <p className="mt-2 leading-relaxed whitespace-pre-line text-foreground">{c.applicantMessage.text}</p>
         </section>
       )}
 
       {c.status === "needs_info" && !sent && <ReplyForm token={token} lang={lang} />}
-      {sent && <p className="rounded-md border border-emerald-300 bg-emerald-50 p-3 text-sm dark:border-emerald-700 dark:bg-emerald-950">{s.replySent}</p>}
+      {sent && (
+        <p role="status" className="flex items-center gap-2 rounded-xl bg-success-soft p-4 text-sm font-medium text-success">
+          <CircleCheck aria-hidden="true" className="size-4 shrink-0" />
+          {s.replySent}
+        </p>
+      )}
 
-      <p className="text-xs text-zinc-500">{s.keepLink}</p>
-    </main>
+      <section aria-labelledby="timeline">
+        <h2 id="timeline" className="text-sm font-medium text-muted-foreground">
+          {s.timeline}
+        </h2>
+        <ol className="mt-4">
+          {TIMELINE.map((st, i) => {
+            const done = c.status === "paid" ? true : i < reached;
+            const current = !done && i === reached;
+            const struck = rejected && st !== "new";
+            return (
+              <li key={st} aria-current={current ? "step" : undefined} className="relative flex gap-3 pb-5 last:pb-0">
+                {i < TIMELINE.length - 1 && (
+                  <span aria-hidden="true" className={`absolute top-7 bottom-1 left-[11px] w-px ${done ? "bg-primary" : "bg-border"}`} />
+                )}
+                <span
+                  aria-hidden="true"
+                  className={`relative flex size-6 shrink-0 items-center justify-center rounded-full ${
+                    done ? "bg-primary text-primary-foreground" : current ? "border-2 border-primary bg-card" : "border border-input/50 bg-card"
+                  }`}
+                >
+                  {done ? <Check className="size-3.5" strokeWidth={3} /> : current ? <span className="size-2 rounded-full bg-primary" /> : null}
+                </span>
+                <span className={`pt-0.5 text-sm ${current ? "font-medium" : done ? "" : "text-muted-foreground"} ${struck ? "line-through decoration-muted-foreground" : ""}`}>
+                  {t.status[st]}
+                </span>
+              </li>
+            );
+          })}
+        </ol>
+      </section>
+
+      <p className="flex gap-2 text-[13px] leading-relaxed text-muted-foreground">
+        <Bookmark aria-hidden="true" className="mt-0.5 size-4 shrink-0" />
+        {s.keepLink}
+      </p>
+    </Shell>
   );
 }

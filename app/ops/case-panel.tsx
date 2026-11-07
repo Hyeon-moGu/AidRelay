@@ -1,6 +1,9 @@
 "use client";
 
 // Side panel: the photos, the applicant's story, the AI decision with its clauses, and the audit trail.
+import { Lock, X } from "lucide-react";
+import { Chip, StatusBadge } from "@/components/status-badge";
+import { clock, money } from "@/lib/format";
 import type { Decision } from "@/lib/agent/schema";
 
 export interface CaseDetail {
@@ -34,90 +37,124 @@ export interface CaseDetail {
   audit: Array<{ actor: string; action: string; policyClause?: string; reason: string; ts: string }>;
 }
 
-const money = (c: number | null | undefined) => (c == null ? "–" : `$${(c / 100).toFixed(2)}`);
+const orDash = (s: string) => s || "–";
 
 function DecisionBlock({ d, title }: { d: Decision; title: string }) {
   return (
-    <div className="space-y-1 rounded-md border border-zinc-200 p-3 text-sm dark:border-zinc-800">
-      <div className="flex items-center justify-between">
-        <span className="font-medium">{title}</span>
-        <span className="text-xs text-zinc-500">
-          {d.eligibility} · tier {d.tier ?? "–"} · {Math.round(d.confidence * 100)}%
+    <section className="space-y-2.5 rounded-lg border border-border p-3">
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <h3 className="text-sm font-semibold">{title}</h3>
+        <span className="flex flex-wrap gap-1">
+          <Chip tone={d.eligibility === "eligible" ? "success" : d.eligibility === "ineligible" ? "danger" : "warning"}>{d.eligibility.replace(/_/g, " ")}</Chip>
+          <Chip>tier {d.tier ?? "–"}</Chip>
+          <Chip className="tabular-nums">{Math.round(d.confidence * 100)}%</Chip>
         </span>
       </div>
-      <ul className="space-y-1">
+      <ul className="space-y-1.5 text-[13px] leading-snug">
         {d.reasons.map((r, i) => (
-          <li key={i}>
-            <span className="rounded bg-zinc-100 px-1 font-mono text-[11px] dark:bg-zinc-800">{r.clause}</span> {r.evidence}
+          <li key={i} className="flex gap-2">
+            <Chip tone="accent" mono className="h-fit shrink-0">
+              {r.clause}
+            </Chip>
+            <span>{r.evidence}</span>
           </li>
         ))}
       </ul>
-      {d.redFlags.length > 0 && <p className="text-red-700">flags: {d.redFlags.join(", ")}</p>}
+      {d.redFlags.length > 0 && (
+        <p className="flex flex-wrap gap-1">
+          {d.redFlags.map((f) => (
+            <Chip key={f} tone="danger">
+              {f.replace(/_/g, " ")}
+            </Chip>
+          ))}
+        </p>
+      )}
       {d.followUpQuestions.length > 0 && (
-        <ul className="list-disc pl-5 text-zinc-600 dark:text-zinc-400">
+        <ul className="list-disc space-y-0.5 pl-5 text-[13px] text-muted-foreground">
           {d.followUpQuestions.map((q, i) => (
             <li key={i}>{q}</li>
           ))}
         </ul>
       )}
-      <p className="text-xs text-zinc-500">ledger: {d.ledgerSummary}</p>
-    </div>
+      <p className="text-xs text-muted-foreground">
+        <span className="font-medium">Ledger line:</span> {d.ledgerSummary}
+      </p>
+    </section>
   );
 }
 
 export function CasePanel({ detail, onClose }: { detail: CaseDetail | null; onClose: () => void }) {
-  if (!detail) return <p className="text-sm text-zinc-500">Click a row to see the photos, the AI reasoning and the audit trail.</p>;
+  if (!detail) {
+    return <p className="py-6 text-center text-sm text-muted-foreground">Click a row to see the photos, the AI reasoning and the audit trail.</p>;
+  }
   const c = detail.case;
+  const media = [...c.photoUrls, ...c.docUrls];
   return (
-    <div className="space-y-4 text-sm">
-      <div className="flex items-start justify-between">
-        <div>
-          <h2 className="text-lg font-semibold">
-            {c.id} <span className="text-sm font-normal text-zinc-500">{c.status.replace("_", " ")}</span>
-          </h2>
-          <p className="text-zinc-500">
-            {c.contact.name} · {c.contact.email}
-            {c.contact.phone ? ` · ${c.contact.phone}` : ""}
-          </p>
-          <p className="text-zinc-500">
-            {c.contact.address ?? "no address"} · {c.zip} · household {c.householdSize ?? "?"} · asked {money(c.requestedAmountCents)}
-          </p>
+    <div className="animate-relay-in space-y-4 text-sm">
+      <div className="flex items-start justify-between gap-3">
+        <div className="flex flex-wrap items-center gap-2">
+          <h3 className="font-mono text-base font-semibold" translate="no">
+            {c.id}
+          </h3>
+          <StatusBadge status={c.status} />
         </div>
-        <button type="button" onClick={onClose} className="text-xs text-zinc-500 underline">
-          close
+        <button type="button" aria-label="Close the case" onClick={onClose} className="-m-1 flex size-8 items-center justify-center rounded-md text-muted-foreground hover:bg-muted hover:text-foreground">
+          <X aria-hidden="true" className="size-4" />
         </button>
       </div>
 
-      {(c.photoUrls.length > 0 || c.docUrls.length > 0) && (
+      <div className="rounded-lg bg-muted/70 p-3">
+        <p className="flex items-center gap-1.5 text-xs font-medium text-muted-foreground">
+          <Lock aria-hidden="true" className="size-3.5" />
+          Private. Never sent to the model or the ledger.
+        </p>
+        <p className="mt-1.5 font-medium">{c.contact.name}</p>
+        <p className="truncate text-muted-foreground" translate="no">
+          {c.contact.email}
+          {c.contact.phone ? ` · ${c.contact.phone}` : ""}
+        </p>
+        <p className="text-muted-foreground">{c.contact.address ?? "No address given"}</p>
+      </div>
+
+      {media.length > 0 && (
         <div className="grid grid-cols-3 gap-2">
-          {[...c.photoUrls, ...c.docUrls].map((u) => (
-            <a key={u} href={u} target="_blank" rel="noreferrer">
+          {media.map((u, i) => (
+            <a key={u} href={u} target="_blank" rel="noreferrer" className="block overflow-hidden rounded-md border border-border">
               {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img src={u} alt="" className="h-28 w-full rounded object-cover" />
+              <img src={u} alt={`Evidence ${i + 1} for ${c.id}`} width={120} height={112} loading="lazy" className="h-28 w-full object-cover" />
             </a>
           ))}
         </div>
       )}
 
-      <p className="whitespace-pre-line rounded-md bg-zinc-50 p-3 dark:bg-zinc-900">{c.narrative}</p>
+      <div className="space-y-1.5">
+        <p className="text-xs font-medium text-muted-foreground">Applicant’s words, treated as untrusted data</p>
+        <p className="max-h-48 overflow-y-auto overscroll-contain rounded-lg bg-muted/70 p-3 leading-relaxed whitespace-pre-line">{c.narrative}</p>
+      </div>
 
-      <dl className="grid grid-cols-[auto_1fr] gap-x-3 gap-y-1 text-xs">
-        <dt className="text-zinc-500">Amount on file</dt>
-        <dd>
-          {money(c.humanDecision?.amountCents ?? c.approvedAmountCents ?? c.aiDecision?.recommendedAmountCents)}
-          {c.reservedCents ? ` (reserved ${money(c.reservedCents)})` : ""}
+      <dl className="grid grid-cols-[auto_minmax(0,1fr)] gap-x-4 gap-y-1.5 text-[13px]">
+        <dt className="text-muted-foreground">Zip · household</dt>
+        <dd className="tabular-nums">
+          {c.zip} · {c.householdSize ?? "?"} people
         </dd>
-        <dt className="text-zinc-500">Evidence</dt>
-        <dd>{c.usableEvidenceCount ?? "–"} usable photo(s)/document(s)</dd>
-        <dt className="text-zinc-500">Duplicates</dt>
+        <dt className="text-muted-foreground">Asked for</dt>
+        <dd className="tabular-nums">{orDash(money(c.requestedAmountCents))}</dd>
+        <dt className="text-muted-foreground">Amount on file</dt>
+        <dd className="font-medium tabular-nums">
+          {orDash(money(c.humanDecision?.amountCents ?? c.approvedAmountCents ?? c.aiDecision?.recommendedAmountCents))}
+          {c.reservedCents ? <span className="font-normal text-muted-foreground"> · reserved {money(c.reservedCents)}</span> : null}
+        </dd>
+        <dt className="text-muted-foreground">Evidence</dt>
+        <dd>{c.usableEvidenceCount == null ? "–" : `${c.usableEvidenceCount} usable photo(s) or document(s)`}</dd>
+        <dt className="text-muted-foreground">Duplicates</dt>
         <dd>{c.dupMatches?.length ? c.dupMatches.map((d) => `${d.caseId} (${d.by.join(", ")})`).join("; ") : "none"}</dd>
-        <dt className="text-zinc-500">Second evaluation</dt>
+        <dt className="text-muted-foreground">Second evaluation</dt>
         <dd>{c.secondEvaluationAgrees == null ? "not run" : c.secondEvaluationAgrees ? "agrees" : "differs"}</dd>
         {c.humanDecision && (
           <>
-            <dt className="text-zinc-500">Human</dt>
+            <dt className="text-muted-foreground">Volunteer</dt>
             <dd>
-              {c.humanDecision.approved ? "approved" : "rejected"} by {c.humanDecision.by}
+              {c.humanDecision.approved ? "approved" : "rejected"} by <span className="font-mono">{c.humanDecision.by}</span>
               {c.humanDecision.amountCents ? ` for ${money(c.humanDecision.amountCents)}` : ""}
               {c.humanDecision.note ? ` · ${c.humanDecision.note}` : ""}
             </dd>
@@ -125,34 +162,45 @@ export function CasePanel({ detail, onClose }: { detail: CaseDetail | null; onCl
         )}
         {detail.payout && (
           <>
-            <dt className="text-zinc-500">Payout</dt>
+            <dt className="text-muted-foreground">Payout</dt>
             <dd>
-              {detail.payout.status} ({detail.payout.outcome}) {money(detail.payout.amountCents)} · batch {detail.payout.payoutBatchId ?? "–"}
-              {detail.payout.error ? ` · ${detail.payout.error}` : ""}
+              {detail.payout.status.toLowerCase()} ({detail.payout.outcome.replace(/_/g, " ")}) · {money(detail.payout.amountCents)}
+              {detail.payout.payoutBatchId && (
+                <>
+                  {" "}
+                  · <span className="font-mono">{detail.payout.payoutBatchId}</span>
+                </>
+              )}
+              {detail.payout.error ? <span className="text-danger"> · {detail.payout.error}</span> : null}
             </dd>
           </>
         )}
       </dl>
 
       {c.applicantMessage && (
-        <div className="rounded-md border border-amber-300 bg-amber-50 p-3 text-xs whitespace-pre-line dark:border-amber-700 dark:bg-amber-950">
-          <strong>Message to applicant ({c.applicantMessage.lang}):</strong>
-          <br />
-          {c.applicantMessage.text}
+        <div className="rounded-lg bg-warning-soft p-3 text-[13px]">
+          <p className="font-medium text-warning">Message shown to the applicant ({c.applicantMessage.lang})</p>
+          <p className="mt-1 leading-relaxed whitespace-pre-line">{c.applicantMessage.text}</p>
         </div>
       )}
 
       {c.aiDecision && <DecisionBlock d={c.aiDecision} title="Case Officer decision" />}
       {c.aiDecisionSecond && <DecisionBlock d={c.aiDecisionSecond} title="Second, independent evaluation" />}
 
-      <details>
-        <summary className="cursor-pointer text-xs text-zinc-500">Audit trail ({detail.audit.length})</summary>
-        <ol className="mt-2 space-y-1 text-xs">
+      <details className="group rounded-lg border border-border">
+        <summary className="cursor-pointer list-none px-3 py-2 text-[13px] font-medium text-muted-foreground hover:text-foreground">
+          Audit trail <span className="tabular-nums">({detail.audit.length})</span>
+        </summary>
+        <ol className="space-y-1.5 border-t border-border px-3 py-2.5 text-xs">
           {detail.audit.map((a, i) => (
-            <li key={i}>
-              <span className="text-zinc-400">{new Date(a.ts).toLocaleTimeString()}</span> <span className="font-mono">{a.actor}</span> {a.action}
-              {a.policyClause && <span className="ml-1 rounded bg-zinc-100 px-1 text-[10px] dark:bg-zinc-800">{a.policyClause}</span>}
-              <span className="text-zinc-500"> · {a.reason}</span>
+            <li key={i} className="leading-relaxed">
+              <span className="text-muted-foreground tabular-nums">{clock(a.ts)}</span> <span className="font-mono">{a.actor}</span> {a.action.replace(/_/g, " ")}
+              {a.policyClause && (
+                <Chip tone="accent" mono className="ml-1">
+                  {a.policyClause}
+                </Chip>
+              )}
+              <span className="text-muted-foreground"> · {a.reason}</span>
             </li>
           ))}
         </ol>

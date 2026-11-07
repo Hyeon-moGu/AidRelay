@@ -2,13 +2,14 @@
 
 // PayPal JS SDK (v5 Buttons) donate flow: createOrder → server creates the Orders v2 order,
 // onApprove → server captures it and records the donation.
+import { ArrowRight, CircleCheck, LoaderCircle } from "lucide-react";
 import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
-import { Button } from "@/components/ui/button";
-import { formatMoney } from "@/lib/money";
+import { fieldClass } from "@/components/ui/input";
+import { money } from "@/lib/format";
 
 type PayPalButtonsFactory = (options: {
-  style?: { layout?: "vertical" | "horizontal"; shape?: "rect" | "pill"; label?: string };
+  style?: { layout?: "vertical" | "horizontal"; shape?: "rect" | "pill"; label?: string; height?: number };
   createOrder: () => Promise<string>;
   onApprove: (data: { orderID: string }) => Promise<void>;
   onCancel?: () => void;
@@ -62,6 +63,7 @@ function loadSdk(clientId: string): Promise<void> {
         currency: "USD",
         intent: "capture",
         components: "buttons",
+        locale: "en_US",
       });
       script.id = SCRIPT_ID;
       script.src = `https://www.paypal.com/sdk/js?${params.toString()}`;
@@ -74,9 +76,12 @@ function loadSdk(clientId: string): Promise<void> {
 export function DonateForm({ clientId }: { clientId: string }) {
   const [amountCents, setAmountCents] = useState(PRESETS_CENTS[0]);
   const [customDollars, setCustomDollars] = useState("");
+  const [customError, setCustomError] = useState(false);
   const [phase, setPhase] = useState<Phase>(clientId ? { kind: "loading" } : { kind: "unconfigured" });
   const amountRef = useRef(amountCents);
   amountRef.current = amountCents;
+  const blockedRef = useRef(false);
+  blockedRef.current = customError;
   const containerRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -90,8 +95,9 @@ export function DonateForm({ clientId }: { clientId: string }) {
       if (cancelled || !window.paypal || !container) return;
       container.innerHTML = "";
       buttons = window.paypal.Buttons({
-        style: { layout: "vertical", shape: "rect", label: "donate" },
+        style: { layout: "vertical", shape: "rect", label: "donate", height: 48 },
         createOrder: async () => {
+          if (blockedRef.current) throw new Error("Enter an amount between $1 and $10,000.");
           const data = await postJson<{ orderId: string }>("/api/donate/create-order", {
             amountCents: amountRef.current,
           });
@@ -128,85 +134,139 @@ export function DonateForm({ clientId }: { clientId: string }) {
 
   const onCustomChange = (value: string) => {
     setCustomDollars(value);
-    if (!/^\d+(\.\d{0,2})?$/.test(value)) return;
-    const cents = Math.round(Number(value) * 100);
-    if (cents >= MIN_CENTS && cents <= MAX_CENTS) setAmountCents(cents);
+    if (value === "") {
+      setCustomError(false);
+      return;
+    }
+    const valid = /^\d+(\.\d{0,2})?$/.test(value);
+    const cents = valid ? Math.round(Number(value) * 100) : NaN;
+    const inRange = cents >= MIN_CENTS && cents <= MAX_CENTS;
+    setCustomError(!inRange);
+    if (inRange) setAmountCents(cents);
   };
 
   if (phase.kind === "unconfigured") {
     return (
-      <p className="rounded-md border border-amber-300 bg-amber-50 p-4 text-sm text-amber-900 dark:border-amber-700 dark:bg-amber-950 dark:text-amber-100">
-        The donate button needs <code>PAYPAL_CLIENT_ID</code> in <code>.env</code>.
+      <p role="status" className="h-fit rounded-2xl bg-warning-soft p-5 text-sm text-warning">
+        The donate button needs <code className="font-mono">PAYPAL_CLIENT_ID</code> in <code className="font-mono">.env</code>.
       </p>
     );
   }
 
   if (phase.kind === "done") {
     return (
-      <section className="space-y-3 rounded-md border border-emerald-300 bg-emerald-50 p-4 dark:border-emerald-700 dark:bg-emerald-950">
-        <h2 className="text-lg font-semibold">Thank you, {formatMoney(phase.amountCents)} received</h2>
-        <dl className="grid grid-cols-[auto_1fr] gap-x-4 gap-y-1 text-sm">
-          <dt className="text-zinc-500">PayPal capture</dt>
-          <dd className="font-mono">{phase.captureId}</dd>
-          <dt className="text-zinc-500">Order</dt>
-          <dd className="font-mono">{phase.orderId}</dd>
-          <dt className="text-zinc-500">Status</dt>
-          <dd>{phase.status}</dd>
-          <dt className="text-zinc-500">Fund raised so far</dt>
-          <dd>{formatMoney(phase.raisedCents)}</dd>
+      <section aria-labelledby="thanks" className="animate-relay-in h-fit space-y-5 rounded-2xl border border-border bg-card p-6">
+        <div className="flex items-start gap-3">
+          <span aria-hidden="true" className="flex size-10 shrink-0 items-center justify-center rounded-full bg-success-soft text-success">
+            <CircleCheck className="size-5" />
+          </span>
+          <div>
+            <h2 id="thanks" className="text-xl font-semibold tracking-tight">
+              Thank you. {money(phase.amountCents)} received.
+            </h2>
+            <p className="mt-1 text-sm text-muted-foreground">The Case Officer is already checking who it can pay.</p>
+          </div>
+        </div>
+        <dl className="grid grid-cols-[auto_minmax(0,1fr)] gap-x-4 gap-y-2 border-t border-border pt-5 text-sm">
+          <dt className="text-muted-foreground">PayPal capture</dt>
+          <dd className="truncate font-mono" translate="no">
+            {phase.captureId}
+          </dd>
+          <dt className="text-muted-foreground">Order</dt>
+          <dd className="truncate font-mono" translate="no">
+            {phase.orderId}
+          </dd>
+          <dt className="text-muted-foreground">Status</dt>
+          <dd>{phase.status.toLowerCase()}</dd>
+          <dt className="text-muted-foreground">Fund raised so far</dt>
+          <dd className="font-medium tabular-nums">{money(phase.raisedCents)}</dd>
         </dl>
-        <p className="text-sm">
-          <Link href="/ledger" className="underline">
-            See it on the public ledger
-          </Link>
-        </p>
+        <Link href="/ledger" className="inline-flex items-center gap-1.5 text-sm font-medium text-primary hover:underline">
+          See it on the public ledger
+          <ArrowRight aria-hidden="true" className="size-4" />
+        </Link>
       </section>
     );
   }
 
   return (
-    <section className="space-y-6">
-      <fieldset className="space-y-3">
-        <legend className="text-sm font-medium">Amount</legend>
-        <div className="flex flex-wrap gap-2">
-          {PRESETS_CENTS.map((cents) => (
-            <Button
+    <section aria-labelledby="give" className="h-fit space-y-6 rounded-2xl border border-border bg-card p-6">
+      <h2 id="give" className="text-lg font-semibold tracking-tight">
+        Choose an amount
+      </h2>
+      <div role="group" aria-label="Preset amounts" className="grid grid-cols-3 gap-2">
+        {PRESETS_CENTS.map((cents) => {
+          const selected = amountCents === cents && !customDollars;
+          return (
+            <button
               key={cents}
               type="button"
-              variant={amountCents === cents && !customDollars ? "default" : "outline"}
+              aria-pressed={selected}
               onClick={() => {
                 setCustomDollars("");
+                setCustomError(false);
                 setAmountCents(cents);
               }}
+              className={`h-12 rounded-lg border text-[15px] font-semibold tabular-nums transition-[background-color,border-color,transform] duration-150 ease-out active:scale-[0.97] ${
+                selected ? "border-primary bg-accent text-accent-foreground" : "border-input/60 bg-card hover:bg-muted"
+              }`}
             >
-              {formatMoney(cents)}
-            </Button>
-          ))}
-          <label className="flex items-center gap-2 text-sm">
-            <span className="text-zinc-500">or $</span>
-            <input
-              inputMode="decimal"
-              placeholder="custom"
-              value={customDollars}
-              onChange={(e) => onCustomChange(e.target.value)}
-              className="w-24 rounded-md border border-zinc-300 bg-transparent px-2 py-1 dark:border-zinc-700"
-            />
-          </label>
+              {money(cents).replace(".00", "")}
+            </button>
+          );
+        })}
+      </div>
+      <div className="space-y-1.5">
+        <label htmlFor="custom-amount" className="text-sm font-medium">
+          Other amount
+        </label>
+        <div className="relative">
+          <span aria-hidden="true" className="pointer-events-none absolute inset-y-0 left-3 flex items-center text-muted-foreground">
+            $
+          </span>
+          <input
+            id="custom-amount"
+            name="amount"
+            inputMode="decimal"
+            autoComplete="off"
+            placeholder="35"
+            value={customDollars}
+            aria-invalid={customError ? true : undefined}
+            aria-describedby={customError ? "custom-amount-error" : undefined}
+            onChange={(e) => onCustomChange(e.target.value)}
+            className={`${fieldClass} h-11 pl-7 tabular-nums`}
+          />
         </div>
-        <p className="text-sm text-zinc-500">
-          You are donating <strong>{formatMoney(amountCents)}</strong>.
+        {customError && (
+          <p id="custom-amount-error" className="text-[13px] font-medium text-danger">
+            Enter an amount between $1 and $10,000.
+          </p>
+        )}
+      </div>
+      <div className="flex items-baseline justify-between border-t border-border pt-5">
+        <span className="text-sm text-muted-foreground">You are donating</span>
+        <span aria-live="polite" className="text-3xl font-semibold tracking-[-0.02em] tabular-nums">
+          {money(amountCents)}
+        </span>
+      </div>
+
+      <div ref={containerRef} className="min-h-[104px]" />
+
+      {phase.kind === "loading" && (
+        <p className="flex items-center gap-2 text-sm text-muted-foreground">
+          <LoaderCircle aria-hidden="true" className="size-4 animate-spin" />
+          Loading PayPal…
         </p>
-      </fieldset>
-
-      <div ref={containerRef} className="min-h-12" />
-
-      {phase.kind === "loading" && <p className="text-sm text-zinc-500">Loading PayPal…</p>}
+      )}
       {phase.kind === "capturing" && (
-        <p className="text-sm text-zinc-500">Capturing payment for order {phase.orderId}…</p>
+        <p role="status" className="flex items-center gap-2 text-sm text-muted-foreground">
+          <LoaderCircle aria-hidden="true" className="size-4 animate-spin" />
+          Capturing the payment…
+        </p>
       )}
       {phase.kind === "error" && (
-        <p className="rounded-md border border-red-300 bg-red-50 p-3 text-sm text-red-900 dark:border-red-800 dark:bg-red-950 dark:text-red-100">
-          {phase.message}
+        <p role="alert" className="rounded-lg bg-danger-soft p-3 text-sm text-danger">
+          {phase.message} Try again, or pick another amount.
         </p>
       )}
     </section>

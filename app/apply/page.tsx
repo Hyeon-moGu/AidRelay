@@ -10,8 +10,8 @@ export default async function ApplyPage({ searchParams }: { searchParams: Promis
   const { demo, lang } = await searchParams;
   const prefill = demoPrefill(demo);
   return (
-    <main className="mx-auto flex min-h-screen max-w-xl flex-col gap-6 px-6 py-12">
+    <div className="min-h-dvh">
       <ApplyForm initialLang={normalizeLang(lang ?? prefill?.lang)} prefill={prefill} />
-    </main>
+    </div>
   );
 }

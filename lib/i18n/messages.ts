@@ -38,6 +38,12 @@ export interface Strings {
     submitting: string;
     optional: string;
     consent: string;
+    stepOf: string;
+    language: string;
+    addPhotos: string;
+    addDocument: string;
+    remove: string;
+    reviewTitle: string;
     errors: { required: string; email: string; zip: string; photos: string; tooLarge: string; failed: string };
   };
   status_page: {
@@ -110,6 +116,12 @@ const en: Strings = {
     submit: "Submit application",
     submitting: "Submitting…",
     optional: "optional",
+    stepOf: "Step {n} of {total}",
+    language: "Language",
+    addPhotos: "Add photos",
+    addDocument: "Add a document",
+    remove: "Remove",
+    reviewTitle: "Check your answers",
     consent: "By submitting you confirm the information is true. Your photos and contact details are private; only an anonymized summary appears on the public ledger.",
     errors: {
       required: "This field is required.",
@@ -190,6 +202,12 @@ const es: Strings = {
     submit: "Enviar solicitud",
     submitting: "Enviando…",
     optional: "opcional",
+    stepOf: "Paso {n} de {total}",
+    language: "Idioma",
+    addPhotos: "Agregar fotos",
+    addDocument: "Agregar un documento",
+    remove: "Quitar",
+    reviewTitle: "Revise sus respuestas",
     consent: "Al enviar confirma que la información es verdadera. Sus fotos y datos de contacto son privados; en el registro público solo aparece un resumen anónimo.",
     errors: {
       required: "Este campo es obligatorio.",
