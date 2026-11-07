@@ -1,4 +1,4 @@
-// Google Cloud Storage for applicant photos/documents. Server-only. Objects are private; the ops console uses signed URLs.
+// Google Cloud Storage for applicant photos/documents. Server-only. Objects are private; the ops console streams them through an authenticated route.
 import { Storage, type Bucket } from "@google-cloud/storage";
 import sharp from "sharp";
 import { getEnv } from "@/lib/env";
@@ -36,7 +36,12 @@ export async function signedReadUrl(objectPath: string, minutes = 15): Promise<s
   return url;
 }
 
-/** ≤ 1024 px on the long side, JPEG, EXIF-rotated, what the model sees. */
+/** What is stored: JPEG, EXIF-rotated, at most 2048 px on the long side (originals are not kept). */
+export async function prepareImageForStorage(input: Buffer): Promise<Buffer> {
+  return sharp(input).rotate().resize({ width: 2048, height: 2048, fit: "inside", withoutEnlargement: true }).jpeg({ quality: 85 }).toBuffer();
+}
+
+/** ≤ 1024 px on the long side, JPEG, EXIF-rotated: what the model sees. */
 export async function prepareImageForModel(input: Buffer): Promise<{ data: Buffer; mediaType: "image/jpeg" }> {
   const data = await sharp(input)
     .rotate()

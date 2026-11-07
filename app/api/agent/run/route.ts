@@ -15,6 +15,7 @@ const Body = z.object({
   caseId: z.string().optional(),
   orderId: z.string().optional(),
   eventId: z.string().optional(),
+  command: z.string().max(500).optional(),
 });
 
 function secretMatches(given: string | null, expected: string): boolean {

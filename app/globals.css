@@ -128,3 +128,13 @@
     @apply font-sans;
   }
 }
+/* Published policy on /ledger (rendered from policy.md) */
+.policy h1 { font-size: 1.25rem; font-weight: 600; margin: 0 0 0.75rem; }
+.policy h2 { font-size: 1rem; font-weight: 600; margin: 1.25rem 0 0.5rem; }
+.policy p { margin: 0.5rem 0; }
+.policy ul, .policy ol { margin: 0.5rem 0 0.5rem 1.25rem; list-style: disc; }
+.policy ol { list-style: decimal; }
+.policy li { margin: 0.25rem 0; }
+.policy table { border-collapse: collapse; margin: 0.75rem 0; }
+.policy th, .policy td { border: 1px solid #e4e4e7; padding: 0.25rem 0.6rem; text-align: left; }
+.policy code { font-size: 0.85em; background: rgba(127, 127, 127, 0.12); padding: 0 0.25rem; border-radius: 3px; }

@@ -16,6 +16,8 @@ export interface AgentRunRequest {
   caseId?: string;
   orderId?: string;
   eventId?: string;
+  /** operator.command: what the operator did or asked for (plain English, shown in the feed). */
+  command?: string;
 }
 
 /** Fire-and-forget. Failures are logged, never thrown: the money record is already committed. */

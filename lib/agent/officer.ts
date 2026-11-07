@@ -42,7 +42,7 @@ export async function runCaseOfficer(req: AgentRunRequest): Promise<RunResult> {
 
   try {
     let summary: string;
-    let handled = true;
+    const handled = true;
     switch (req.trigger) {
       case "case.created": {
         if (!req.caseId) throw new Error("case.created needs caseId");
@@ -63,8 +63,9 @@ export async function runCaseOfficer(req: AgentRunRequest): Promise<RunResult> {
         break;
       }
       case "operator.command": {
-        summary = "operator.command is a stretch feature and is not implemented yet.";
-        handled = false;
+        // Today: the console approved cases and the agent pays them (P-8 order, every guardrail still applies).
+        // The natural-language command bar (plan → confirm → execute) remains a stretch item.
+        summary = await runSession(ctx, allocationPrompt(req.command ?? "An operator approved one or more cases"), MAX_STEPS_ALLOCATION);
         break;
       }
     }
