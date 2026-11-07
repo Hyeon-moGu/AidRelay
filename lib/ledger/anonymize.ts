@@ -36,6 +36,13 @@ function walk(value: unknown): unknown {
   return value;
 }
 
+/** Redacts anything that looks like an email address or a phone number from free text the agent writes. */
+export function scrubPii(text: string): string {
+  return text
+    .replace(/[\w.+-]+@[\w-]+\.[\w.-]+/g, "[redacted]")
+    .replace(/\+?\d[\d\s().-]{6,}\d/g, "[redacted]");
+}
+
 /** Public ledger rows show only the first three digits of a zip code. */
 export function zipPrefix(zip: string): string {
   return zip.replace(/\D/g, "").slice(0, 3);

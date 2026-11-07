@@ -22,6 +22,11 @@ const EnvSchema = z.object({
   // Whole dollars in the environment; money is integer cents everywhere else (AGENTS.md §11).
   AUTO_APPROVE_LIMIT: z.coerce.number().int().positive().default(250),
   AUTO_APPROVE_MIN_CONFIDENCE: z.coerce.number().min(0).max(1).default(0.85),
+  /** P-9.9: a second independent evaluation must agree before the agent pays on its own. */
+  AUTO_APPROVE_DOUBLE_CHECK: z
+    .enum(["true", "false"])
+    .default("true")
+    .transform((v) => v === "true"),
   FUND_ID: z.string().min(1).default("default"),
 
   AG_GRID_LICENSE_KEY: z.string().optional(),

@@ -1,13 +1,14 @@
 // The multimodal decision: Haiku pre-screens the photos, Sonnet returns a Decision, code applies the
-// deterministic parts of the policy (duplicates, declared area, P-6/P-7 amounts) on top.
+// deterministic parts of the policy (duplicates, declared area, evidence, P-6/P-7 amounts) on top.
 import { generateObject } from "ai";
 import { z } from "zod";
 import { isNearDuplicate } from "@/lib/dedupe/phash";
 import { normalizeAddress, normalizeEmail, normalizePhone } from "@/lib/db/repos/cases";
 import type { CaseDoc, DupMatch } from "@/lib/db/types";
 import { MESSAGES, normalizeLang } from "@/lib/i18n/messages";
+import { scrubPii } from "@/lib/ledger/anonymize";
 import { addUsage, officerModel, prescreenModel, type Usage } from "@/lib/agent/models";
-import { isAmountOutlier, isInsideDeclaredArea, isTier, maxRecommendedCents } from "@/lib/agent/policy";
+import { isAmountOutlier, isInsideDeclaredArea, isTier, maxRecommendedCents, POLICY } from "@/lib/agent/policy";
 import { decisionSystem, decisionUserText, policySystemMessage, PRESCREEN_SYSTEM } from "@/lib/agent/prompts";
 import { DecisionSchema, type Decision, type RedFlag } from "@/lib/agent/schema";
 import type { AutoApproveLimits } from "@/lib/agent/guardrails";
@@ -59,6 +60,25 @@ export function findDuplicates(c: CaseDoc, others: readonly CaseDoc[]): DupMatch
   return matches;
 }
 
+/**
+ * Prompt-injection heuristics for the applicant narrative. Real applicants describe damage; they do not
+ * address "the system", quote policy clause ids, or set their own confidence. Returns the matched patterns.
+ */
+const INJECTION_PATTERNS: Array<[RegExp, string]> = [
+  [/\b(ignore|disregard|override|forget)\b[^.]{0,40}\b(instruction|rule|polic|guideline|prompt|limit)/i, "ignore-instructions"],
+  [/\bsystem prompt\b/i, "system-prompt"],
+  [/\b(you are|act as|pretend to be|as an?)\b[^.]{0,30}\b(ai|assistant|model|language model|case officer|agent)\b/i, "role-play"],
+  [/\bP-\d+(\.\d+)?\b/, "policy-clause-id"],
+  [/\b(auto[- ]?approve|auto[- ]?approval|confidence\s*[:=]?\s*0?\.\d+|eligib(?:le|ility)\s*[:=])/i, "policy-vocabulary"],
+  [/\b(mark|set|classify|rate)\b[^.]{0,30}\b(eligible|approved|tier\s*[1-4])\b/i, "dictates-outcome"],
+];
+
+export function detectInstructionInjection(text: string): string[] {
+  const hits: string[] = [];
+  for (const [re, label] of INJECTION_PATTERNS) if (re.test(text)) hits.push(label);
+  return hits;
+}
+
 const PrescreenSchema = z.object({
   photos: z.array(z.object({ index: z.number().int().min(0), usable: z.boolean(), description: z.string().max(240) })),
 });
@@ -88,6 +108,12 @@ export async function prescreenPhotos(images: ModelImage[], usage: Usage): Promi
     console.warn("[evaluate] prescreen failed, continuing without it:", err instanceof Error ? err.message : err);
     return undefined;
   }
+}
+
+/** Usable evidence count: the pre-screen's verdict when available, otherwise every image that loaded. */
+export function countUsableEvidence(images: ModelImage[], prescreen: Prescreen | undefined): number {
+  if (!prescreen) return images.length;
+  return prescreen.filter((p) => p.usable).length;
 }
 
 export interface DecideArgs {
@@ -134,19 +160,22 @@ export async function decideCase(a: DecideArgs): Promise<Decision> {
   return DecisionSchema.parse(result.object);
 }
 
-/** Strips anything that looks like an email, phone number or long digit run from public text. */
+/** Public-ledger text: no emails, no phone numbers, at most 140 characters. */
 export function scrubSummary(text: string): string {
-  return text
-    .replace(/[\w.+-]+@[\w-]+\.[\w.-]+/g, "[redacted]")
-    .replace(/\+?\d[\d\s().-]{6,}\d/g, "[redacted]")
-    .slice(0, 140);
+  return scrubPii(text).slice(0, 140);
+}
+
+export interface EvidenceInfo {
+  /** Usable photos/documents (P-3, P-9.8). */
+  usable: number;
 }
 
 /**
  * The deterministic layer on top of the model's answer:
- * duplicates (P-4), declared area (P-2), amount outliers, and the P-6/P-7 amount by tier.
+ * duplicates (P-4), declared area (P-2), evidence on file (P-3), prompt injection,
+ * amount outliers, and the P-6/P-7 amount by tier.
  */
-export function applyCodeRules(decision: Decision, c: CaseDoc, dupMatches: DupMatch[]): Decision {
+export function applyCodeRules(decision: Decision, c: CaseDoc, dupMatches: DupMatch[], evidence?: EvidenceInfo): Decision {
   const flags = new Set<RedFlag>(decision.redFlags);
   for (const m of dupMatches) {
     if (m.by.includes("photo")) flags.add("duplicate_photo_hash");
@@ -155,12 +184,18 @@ export function applyCodeRules(decision: Decision, c: CaseDoc, dupMatches: DupMa
   }
   if (!isInsideDeclaredArea(c.zip)) flags.add("zip_outside_declared_area");
   if (isAmountOutlier(c.requestedAmountCents)) flags.add("amount_outlier");
+  if (detectInstructionInjection(c.narrative).length > 0) flags.add("instruction_in_narrative");
 
+  const lang = normalizeLang(decision.applicantLanguage || c.lang);
   let eligibility = decision.eligibility;
   const followUpQuestions = [...decision.followUpQuestions];
   if (flags.has("zip_outside_declared_area") && eligibility === "eligible") {
     eligibility = "needs_info";
-    followUpQuestions.push(MESSAGES[normalizeLang(decision.applicantLanguage || c.lang)].proofOfResidence);
+    followUpQuestions.push(MESSAGES[lang].proofOfResidence);
+  }
+  if (evidence && evidence.usable < POLICY.autoApproveMinEvidence && eligibility === "eligible") {
+    eligibility = "needs_info";
+    followUpQuestions.push(MESSAGES[lang].clearPhoto);
   }
 
   const tier = decision.tier;

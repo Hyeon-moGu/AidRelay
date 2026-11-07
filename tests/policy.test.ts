@@ -2,6 +2,7 @@ import { readFileSync } from "node:fs";
 import path from "node:path";
 import { describe, expect, it } from "vitest";
 import {
+  humanMaxCents,
   isAmountOutlier,
   isInsideDeclaredArea,
   maxGrantCents,
@@ -40,6 +41,23 @@ describe("docs/policy.md and lib/agent/policy.ts agree", () => {
 
   it("policy version matches", () => {
     expect(policyMd).toMatch(new RegExp(`^# Relief Fund Policy — ${POLICY.version}`, "m"));
+  });
+
+  it("P-7 human ceiling matches humanMaxCents", () => {
+    const dollars = (humanMaxCents() / 100).toLocaleString("en-US");
+    expect(policyMd).toContain(`up to **${POLICY.humanCapMultiplier}×** the largest possible grant (**$${dollars}**`);
+  });
+
+  it("P-9 lists the evidence, second-evaluation and automation-limit conditions", () => {
+    expect(policyMd).toMatch(/8\. at least one usable photo or document/);
+    expect(policyMd).toMatch(/9\. a second, independent evaluation/);
+    expect(policyMd).toMatch(/10\. the automation limits in P-10/);
+  });
+
+  it("P-10 numbers match POLICY.velocity", () => {
+    const perDay = (POLICY.velocity.maxAutoPaidCentsPer24h / 100).toLocaleString("en-US");
+    expect(policyMd).toContain(`at most **${POLICY.velocity.maxAutoPayoutsPerHour}** grants per rolling hour`);
+    expect(policyMd).toContain(`at most **$${perDay}** per rolling 24 hours`);
   });
 });
 

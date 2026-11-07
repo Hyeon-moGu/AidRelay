@@ -2,6 +2,7 @@ import { randomBytes } from "node:crypto";
 import { Timestamp } from "firebase-admin/firestore";
 import { assertAgentStatusWrite } from "@/lib/agent/guardrails";
 import type { CaseStatus } from "@/lib/agent/schema";
+import { assertTransition } from "@/lib/agent/transitions";
 import { col, getDb } from "@/lib/db/firestore";
 import { auditInTx, writeAudit } from "@/lib/db/repos/audit";
 import type { AuditActor, CaseContact, CaseDoc } from "@/lib/db/types";
@@ -71,7 +72,11 @@ export interface CaseAudit {
   policyClause?: string;
 }
 
-/** Status transition with audit. The agent cannot write `rejected` (AGENTS.md §1.2). */
+/**
+ * Status transition with audit. Every write is checked against the per-actor state machine in
+ * lib/agent/transitions.ts: the agent cannot write `rejected`, cannot regress paid cases, and cannot
+ * move a human-approved case anywhere but paying/parked.
+ */
 export async function setCaseStatus(
   id: string,
   status: CaseStatus,
@@ -85,6 +90,7 @@ export async function setCaseStatus(
     const snap = await tx.get(ref);
     if (!snap.exists) throw new Error(`case ${id} not found`);
     const before = snap.data() as CaseDoc;
+    assertTransition(audit.actor, before.status, status, { humanApproved: !!before.humanDecision?.approved });
     const now = Timestamp.now();
     const timestamps = { ...before.timestamps, ...(patch.timestamps ?? {}) };
     if (status === "approved" && !timestamps.approved) timestamps.approved = now;

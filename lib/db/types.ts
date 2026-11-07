@@ -107,6 +107,10 @@ export interface CaseDoc {
   status: CaseStatus;
   tier?: number | null;
   aiDecision?: Decision;
+  /** P-9.9: the second, independent evaluation run before an unattended payout. */
+  aiDecisionSecond?: Decision;
+  /** P-9.8: usable photos/documents counted at evaluation time. */
+  usableEvidenceCount?: number;
   /** Amount the fund will pay: the human's figure if set, else the agent's recommendation. */
   approvedAmountCents?: number;
   humanDecision?: HumanDecision;

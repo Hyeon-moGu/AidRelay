@@ -1,22 +1,26 @@
 // The Case Officer's tools (AGENTS.md §8). Every call is timed, written to agent_runs for the activity
 // feed, and — when it changes state — audited with the policy clause it relied on.
+// The model never chooses an amount: amounts come from the policy (tier + P-6) or from a human.
 import { FieldValue, Timestamp } from "firebase-admin/firestore";
 import { tool, type ToolSet } from "ai";
 import { z } from "zod";
 import { planAllocation } from "@/lib/agent/allocation";
-import { applyCodeRules, decideCase, findDuplicates, loadCaseImages, prescreenPhotos } from "@/lib/agent/evaluate";
-import { assertPayable, decideStatus, GuardrailError, type AutoApproveLimits } from "@/lib/agent/guardrails";
+import { applyCodeRules, countUsableEvidence, decideCase, findDuplicates, loadCaseImages, prescreenPhotos } from "@/lib/agent/evaluate";
+import { assertPayable, decideStatus, GuardrailError, velocityCheck, type AutoApproveLimits } from "@/lib/agent/guardrails";
 import type { Usage } from "@/lib/agent/models";
 import { POLICY } from "@/lib/agent/policy";
-import { CASE_STATUSES } from "@/lib/agent/schema";
+import { CASE_STATUSES, type Decision } from "@/lib/agent/schema";
 import { col, getDb } from "@/lib/db/firestore";
 import { appendToolCall } from "@/lib/db/repos/agentRuns";
 import { writeAudit } from "@/lib/db/repos/audit";
+import { recentAutoPayouts, recordAutoPayout } from "@/lib/db/repos/autoApprovals";
 import { getCase, listAllCases, listCases, setCaseStatus, updateCase } from "@/lib/db/repos/cases";
-import { getFund, InsufficientFundsError, releaseFunds, reserveFunds } from "@/lib/db/repos/fund";
+import { getFund, InsufficientFundsError, reserveFunds } from "@/lib/db/repos/fund";
 import { createPayoutForCase, getPayout, refreshPayoutStatus } from "@/lib/db/repos/payouts";
 import { fundBalanceCents, type CaseDoc } from "@/lib/db/types";
+import { getEnv } from "@/lib/env";
 import { MESSAGES, normalizeLang } from "@/lib/i18n/messages";
+import { scrubPii } from "@/lib/ledger/anonymize";
 
 export interface RunContext {
   runId: string;
@@ -79,6 +83,7 @@ export function caseView(c: CaseDoc) {
     narrative: c.narrative,
     photoCount: c.photos.length,
     docCount: c.docs.length,
+    usableEvidenceCount: c.usableEvidenceCount ?? null,
     contact: { hasEmail: !!c.contact.email, hasPhone: !!c.contact.phone, hasAddress: !!c.contact.address },
     tier: c.tier ?? null,
     aiDecision: c.aiDecision ?? null,
@@ -108,12 +113,12 @@ async function computeAndStoreDuplicates(c: CaseDoc) {
 export function buildTools(ctx: RunContext): ToolSet {
   return {
     get_policy: tool({
-      description: "The fund's policy text and the auto-approve limits enforced in code.",
+      description: "The fund's policy text and the limits enforced in code (auto-approve, human ceiling, automation limits).",
       inputSchema: z.object({}),
       execute: async (args) =>
         logged(ctx, "get_policy", args, undefined, async () => ({
           version: POLICY.version,
-          autoApprove: { limitCents: ctx.limits.limitCents, minConfidence: ctx.limits.minConfidence, minTier: ctx.limits.minTier },
+          limits: ctx.limits,
           text: ctx.policyText,
         })),
     }),
@@ -175,26 +180,48 @@ export function buildTools(ctx: RunContext): ToolSet {
           const dupMatches = c.dupMatches ?? (await computeAndStoreDuplicates(c));
           const images = await loadCaseImages(c);
           const prescreen = await prescreenPhotos(images, ctx.usage);
+          const usableEvidence = countUsableEvidence(images, prescreen);
+          const decideArgs = { c, images, prescreen, dupMatches, policyText: ctx.policyText, limits: ctx.limits, usage: ctx.usage };
 
-          let decision;
+          let decision: Decision;
           try {
-            decision = applyCodeRules(await decideCase({ c, images, prescreen, dupMatches, policyText: ctx.policyText, limits: ctx.limits, usage: ctx.usage }), c, dupMatches);
+            decision = applyCodeRules(await decideCase(decideArgs), c, dupMatches, { usable: usableEvidence });
           } catch (err) {
             const reason = `decision could not be parsed: ${err instanceof Error ? err.message.slice(0, 200) : String(err)}`;
-            await setCaseStatus(c.id, "needs_review", { actor: "agent", action: "case.escalated", policyClause: "P-9", reason });
+            await setCaseStatus(c.id, "needs_review", { actor: "agent", action: "case.escalated", policyClause: "P-9", reason }, { usableEvidenceCount: usableEvidence });
             return { caseId: c.id, status: "needs_review", clause: "P-9", reason, decision: null };
           }
 
           const amount = decision.recommendedAmountCents;
           const fund = await getFund();
           const fundsAvailable = amount !== null && fundBalanceCents(fund) >= amount;
-          const next = decideStatus(decision, amount, ctx.limits, fundsAvailable);
+          const velocity = amount === null ? { ok: true as const } : velocityCheck(await recentAutoPayouts(), amount, Date.now(), ctx.limits.velocity);
+          const decideCtx = { fundsAvailable, usableEvidence, velocityOk: velocity.ok };
+          let next = decideStatus(decision, amount, ctx.limits, decideCtx);
+
+          // P-9.9: an unattended payout needs a second, independent evaluation that agrees.
+          let second: Decision | undefined;
+          if (next.status === "approved" && getEnv().AUTO_APPROVE_DOUBLE_CHECK) {
+            second = applyCodeRules(await decideCase(decideArgs), c, dupMatches, { usable: usableEvidence });
+            if (second.eligibility !== decision.eligibility || second.tier !== decision.tier) {
+              next = {
+                status: "needs_review",
+                clause: "P-9.9",
+                reason: `independent evaluations disagree: ${decision.eligibility}/tier ${decision.tier} vs ${second.eligibility}/tier ${second.tier}`,
+              };
+            } else {
+              decision = { ...decision, confidence: Math.min(decision.confidence, second.confidence) };
+              next = decideStatus(decision, amount, ctx.limits, decideCtx);
+            }
+          }
 
           const patch: Partial<CaseDoc> = {
             aiDecision: decision,
+            aiDecisionSecond: second,
             tier: decision.tier,
             redFlags: decision.redFlags,
             dupMatches,
+            usableEvidenceCount: usableEvidence,
             approvedAmountCents: amount ?? undefined,
             timestamps: { ...c.timestamps, evaluated: Timestamp.now() },
           };
@@ -211,6 +238,8 @@ export function buildTools(ctx: RunContext): ToolSet {
             clause: next.clause,
             reason: next.reason,
             recommendedAmountCents: amount,
+            usableEvidence,
+            secondEvaluation: second ? { eligibility: second.eligibility, tier: second.tier, confidence: second.confidence } : null,
             decision,
             nextAction:
               next.status === "approved"
@@ -235,13 +264,13 @@ export function buildTools(ctx: RunContext): ToolSet {
     }),
 
     reserve_funds: tool({
-      description: "Reserves the case's amount from the fund balance before a payout (P-9.6). If the balance is short the case is parked instead.",
-      inputSchema: z.object({ caseId: z.string(), amountCents: z.number().int().positive().optional() }),
+      description: "Reserves the case's policy amount from the fund balance before a payout (P-9.6). If the balance is short the case is parked instead.",
+      inputSchema: z.object({ caseId: z.string() }),
       execute: async (args) =>
         logged(ctx, "reserve_funds", args, "P-9.6", async () => {
           const c = await getCase(args.caseId);
           if (!c) throw new Error(`case ${args.caseId} not found`);
-          const amount = args.amountCents ?? amountForCase(c);
+          const amount = amountForCase(c);
           if (amount === null) throw new Error("no amount to reserve: evaluate the case first");
           try {
             const r = await reserveFunds(c.id, amount, { actor: "agent", policyClause: "P-9.6", reason: `reserve ${amount} for ${c.id}` });
@@ -258,19 +287,9 @@ export function buildTools(ctx: RunContext): ToolSet {
         }),
     }),
 
-    release_funds: tool({
-      description: "Releases a case's reservation back to the fund (for example after a failed payout).",
-      inputSchema: z.object({ caseId: z.string(), reason: z.string() }),
-      execute: async (args) =>
-        logged(ctx, "release_funds", args, "P-9.6", async () => {
-          const r = await releaseFunds(args.caseId, { actor: "agent", policyClause: "P-9.6", reason: args.reason });
-          return { ok: true, ...r };
-        }),
-    }),
-
     create_payout: tool({
       description:
-        "Pays the case through PayPal Payouts. Refuses unless a human approved it or every P-9 auto-approve condition holds; never a second payout; never overdraws.",
+        "Pays the case through PayPal Payouts. Refuses unless a human approved it (within the P-7 ceiling) or every P-9 auto-approve condition holds, including evidence on file and the P-10 automation limits; never a second payout; never overdraws.",
       inputSchema: z.object({ caseId: z.string() }),
       execute: async (args) =>
         logged(ctx, "create_payout", args, "P-9", async () => {
@@ -278,17 +297,32 @@ export function buildTools(ctx: RunContext): ToolSet {
           if (!c) throw new Error(`case ${args.caseId} not found`);
           const amount = amountForCase(c);
           if (amount === null) throw new GuardrailError("bad_amount", "no amount on file for this case", "P-7");
-          const [fund, existing] = await Promise.all([getFund(), getPayout(c.id)]);
-          const { path } = assertPayable({
-            caseStatus: c.status,
-            aiDecision: c.aiDecision,
-            humanApproved: !!c.humanDecision?.approved,
-            amountCents: amount,
-            fundBalanceCents: fundBalanceCents(fund),
-            caseReservedCents: c.reservedCents ?? 0,
-            existingPayout: !!existing,
-            limits: ctx.limits,
-          });
+          const [fund, existing, recent] = await Promise.all([getFund(), getPayout(c.id), recentAutoPayouts()]);
+          const humanApproved = !!c.humanDecision?.approved;
+
+          let path: "human" | "auto";
+          try {
+            path = assertPayable({
+              caseStatus: c.status,
+              aiDecision: c.aiDecision,
+              humanApproved,
+              amountCents: amount,
+              fundBalanceCents: fundBalanceCents(fund),
+              caseReservedCents: c.reservedCents ?? 0,
+              existingPayout: !!existing,
+              usableEvidenceCount: c.usableEvidenceCount,
+              recentAutoPayouts: recent,
+              nowMs: Date.now(),
+              limits: ctx.limits,
+            }).path;
+          } catch (err) {
+            // An agent-approved case that hits the P-10 limit waits for a human (never for a human-approved one).
+            if (err instanceof GuardrailError && err.code === "velocity_limit" && !humanApproved && c.status === "approved") {
+              await setCaseStatus(c.id, "needs_review", { actor: "agent", action: "case.escalated", policyClause: "P-10", reason: err.message });
+            }
+            throw err;
+          }
+
           if ((c.reservedCents ?? 0) !== amount) {
             await reserveFunds(c.id, amount, { actor: "agent", policyClause: "P-9.6", reason: `reserve ${amount} before payout` });
           }
@@ -310,6 +344,7 @@ export function buildTools(ctx: RunContext): ToolSet {
             policyClause: path === "auto" ? "P-9" : "human decision",
             reason: path === "auto" ? "auto-approved payout" : "human-approved payout",
           });
+          if (path === "auto") await recordAutoPayout(c.id, amount);
           return { ok: true, caseId: c.id, path, amountCents: amount, payoutBatchId: payout.payoutBatchId ?? null, batchStatus: payout.status };
         }),
     }),
@@ -349,7 +384,8 @@ export function buildTools(ctx: RunContext): ToolSet {
       inputSchema: z.object({ caseId: z.string(), reasons: z.array(z.string().min(1)).min(1), clause: z.string().regex(/^P-\d+(\.\d+)?$/) }),
       execute: async (args) =>
         logged(ctx, "escalate", args, args.clause, async () => {
-          await setCaseStatus(args.caseId, "needs_review", { actor: "agent", action: "case.escalated", policyClause: args.clause, reason: args.reasons.join("; ") });
+          const reason = scrubPii(args.reasons.join("; ")).slice(0, 1000);
+          await setCaseStatus(args.caseId, "needs_review", { actor: "agent", action: "case.escalated", policyClause: args.clause, reason });
           return { ok: true, caseId: args.caseId, status: "needs_review" };
         }),
     }),
@@ -359,13 +395,14 @@ export function buildTools(ctx: RunContext): ToolSet {
       inputSchema: z.object({ caseId: z.string().optional(), text: z.string().min(1).max(500) }),
       execute: async (args) =>
         logged(ctx, "note", args, undefined, async () => {
+          const text = scrubPii(args.text);
           if (args.caseId) {
             await getDb()
               .collection(col.cases)
               .doc(args.caseId)
-              .update({ notes: FieldValue.arrayUnion({ by: "agent", text: args.text, at: Timestamp.now() }) });
+              .update({ notes: FieldValue.arrayUnion({ by: "agent", text, at: Timestamp.now() }) });
           }
-          await writeAudit({ actor: "agent", caseId: args.caseId, action: "note", reason: args.text });
+          await writeAudit({ actor: "agent", caseId: args.caseId, action: "note", reason: text });
           return { ok: true };
         }),
     }),

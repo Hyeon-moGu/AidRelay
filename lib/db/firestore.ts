@@ -12,6 +12,7 @@ export const col = {
   auditLog: "audit_log",
   agentRuns: "agent_runs",
   webhookEvents: "webhook_events",
+  autoApprovals: "auto_approvals",
 } as const;
 
 let db: Firestore | undefined;

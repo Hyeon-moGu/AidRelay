@@ -1,4 +1,6 @@
 import { Timestamp, type DocumentReference } from "firebase-admin/firestore";
+import { GuardrailError } from "@/lib/agent/guardrails";
+import { assertTransition } from "@/lib/agent/transitions";
 import { col, getDb } from "@/lib/db/firestore";
 import { auditInTx } from "@/lib/db/repos/audit";
 import { fundBalanceCents, type AuditActor, type CaseDoc, type FundDoc } from "@/lib/db/types";
@@ -89,7 +91,15 @@ export async function reserveFunds(caseId: string, amountCents: number, meta: Fu
   });
 }
 
-export async function releaseFunds(caseId: string, meta: FundChangeMeta): Promise<{ releasedCents: number }> {
+/**
+ * Releases a case's reservation. Refused while a payout is in flight or settled (the money is
+ * committed), except from the payout-failure path, which passes `afterFailedPayout`.
+ */
+export async function releaseFunds(
+  caseId: string,
+  meta: FundChangeMeta,
+  opts: { afterFailedPayout?: boolean } = {},
+): Promise<{ releasedCents: number }> {
   const db = getDb();
   const fRef = fundRef();
   const cRef = db.collection(col.cases).doc(caseId);
@@ -98,6 +108,9 @@ export async function releaseFunds(caseId: string, meta: FundChangeMeta): Promis
     if (!cSnap.exists || !fSnap.exists) return { releasedCents: 0 };
     const fund = fSnap.data() as FundDoc;
     const c = cSnap.data() as CaseDoc;
+    if ((c.status === "paying" || c.status === "paid") && !opts.afterFailedPayout) {
+      throw new GuardrailError("illegal_transition", `cannot release the reservation of a ${c.status} case`, "P-9.6");
+    }
     const releasedCents = c.reservedCents ?? 0;
     if (releasedCents === 0) return { releasedCents: 0 };
     const reservedCents = Math.max(0, fund.reservedCents - releasedCents);
@@ -127,6 +140,7 @@ export async function settlePaid(caseId: string, amountCents: number, meta: Fund
     const fund = fSnap.data() as FundDoc;
     const c = cSnap.data() as CaseDoc;
     if (c.status === "paid") return { changed: false };
+    assertTransition("system", c.status, "paid");
     const reservedForCase = c.reservedCents ?? 0;
     const now = Timestamp.now();
     tx.update(fRef, {

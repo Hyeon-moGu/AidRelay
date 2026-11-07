@@ -1,5 +1,6 @@
 import { FieldValue, Timestamp } from "firebase-admin/firestore";
 import { assertAgentStatusWrite } from "@/lib/agent/guardrails";
+import { assertTransition } from "@/lib/agent/transitions";
 import { col, getDb } from "@/lib/db/firestore";
 import { auditInTx, writeAudit } from "@/lib/db/repos/audit";
 import { releaseFunds, settlePaid } from "@/lib/db/repos/fund";
@@ -43,6 +44,7 @@ export async function createPayoutForCase(args: CreatePayoutArgs): Promise<Payou
     if (!cSnap.exists) throw new Error(`case ${args.caseId} not found`);
     const c = cSnap.data() as CaseDoc;
     if (c.status !== "approved") throw new Error(`case ${args.caseId} is ${c.status}, not approved`);
+    assertTransition(args.actor, c.status, "paying", { humanApproved: !!c.humanDecision?.approved });
     if ((c.reservedCents ?? 0) !== args.amountCents) {
       throw new Error(`case ${args.caseId} has ${c.reservedCents ?? 0} reserved, payout asks ${args.amountCents}`);
     }
@@ -155,11 +157,15 @@ export async function applyPayoutEvent(info: PayoutEventInfo, source: "webhook" 
   if (info.outcome === "failed") {
     if (payout.outcome === "failed") return { outcome: "failed", changed: false };
     await pRef.update({ outcome: "failed" });
-    await releaseFunds(info.caseId, {
-      actor: "system",
-      reason: `PayPal ${eventType}: ${info.status}${info.error ? ` (${info.error})` : ""}`,
-      policyClause: "P-9.6",
-    });
+    await releaseFunds(
+      info.caseId,
+      {
+        actor: "system",
+        reason: `PayPal ${eventType}: ${info.status}${info.error ? ` (${info.error})` : ""}`,
+        policyClause: "P-9.6",
+      },
+      { afterFailedPayout: true },
+    );
     await setCaseStatus(info.caseId, "needs_review", {
       actor: "system",
       action: "payout.failed",

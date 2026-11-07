@@ -27,6 +27,8 @@ export const RED_FLAGS = [
   "zip_outside_declared_area",
   "amount_outlier",
   "evidence_mismatch",
+  /** The narrative addresses the system or tries to dictate the outcome (prompt injection). */
+  "instruction_in_narrative",
 ] as const;
 export type RedFlag = (typeof RED_FLAGS)[number];
 

@@ -18,6 +18,12 @@ export const POLICY = {
   allocation: "tier-desc-then-first-come" as const,
   /** P-9.2 */
   autoApproveMinTier: 1 as Tier,
+  /** P-9.8 / P-3: usable photos or documents required before the agent may pay on its own. */
+  autoApproveMinEvidence: 1,
+  /** P-7: a human may set at most this multiple of the largest possible grant. */
+  humanCapMultiplier: 2,
+  /** P-10: automation limits without a human. */
+  velocity: { maxAutoPayoutsPerHour: 20, maxAutoPaidCentsPer24h: 500_000 },
   /** A request this far above the largest possible grant is flagged `amount_outlier` for a human. */
   amountOutlierMultiplier: 2,
 } as const;
@@ -36,6 +42,11 @@ export function maxRecommendedCents(tier: Tier, householdSize: number | null): n
 /** Largest grant the policy can ever produce (tier 4 + full household adjustment). */
 export function maxGrantCents(): number {
   return POLICY.tierCents[4] + POLICY.household.maxCents;
+}
+
+/** P-7: ceiling for an amount set by a human. */
+export function humanMaxCents(): number {
+  return maxGrantCents() * POLICY.humanCapMultiplier;
 }
 
 export function isAmountOutlier(requestedCents: number | null): boolean {
