@@ -1,4 +1,4 @@
-# Relief Fund Policy — v1 (demo template)
+# Relief Fund Policy v1 (demo template)
 
 This document is written by the fund's humans and read by the Case Officer agent on every decision.
 The agent cites clause IDs (P-1 … P-10) in its reasoning and must never act outside §5.
@@ -31,7 +31,7 @@ Edit this file to change the agent's behavior; no code change needed.
 ## 5. Agent authority (enforced in code)
 - **P-9 Auto-approve.** The agent may approve and pay without a human when ALL are true:
   1. eligibility = `eligible`
-  2. tier ≥ 1 (every tier qualifies in this demo; a fund may raise this minimum to keep low tiers out of auto-pay — the $250 cap in rule 3 is the real limit)
+  2. tier ≥ 1 (every tier qualifies in this demo; a fund may raise this minimum to keep low tiers out of auto-pay, the $250 cap in rule 3 is the real limit)
   3. recommended amount ≤ **$250** (`AUTO_APPROVE_LIMIT`)
   4. confidence ≥ **0.85**
   5. no red flags
@@ -53,6 +53,6 @@ Edit this file to change the agent's behavior; no code change needed.
 - Photos and contact details are never public.
 
 ## 8. Change log
-- v1 — initial demo policy.
-- v1 (2026-11-07) — P-9 auto-approve tier minimum lowered from 2 to 1: the smallest grants are the safest to automate, and the amount cap already limits exposure.
-- v1 (2026-11-07, hardening) — P-7 ceiling for human-set amounts; P-9 conditions 8–10 (evidence on file, second evaluation, automation limits); P-10 automation limits; the agent never overrides a human decision.
+- v1, initial demo policy.
+- v1 (2026-11-07), P-9 auto-approve tier minimum lowered from 2 to 1: the smallest grants are the safest to automate, and the amount cap already limits exposure.
+- v1 (2026-11-07, hardening), P-7 ceiling for human-set amounts; P-9 conditions 8–10 (evidence on file, second evaluation, automation limits); P-10 automation limits; the agent never overrides a human decision.

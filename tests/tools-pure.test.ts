@@ -21,7 +21,7 @@ const base: CaseDoc = {
   timestamps: { created: Timestamp.fromMillis(1_700_000_000_000) },
 };
 
-describe("caseView — what the orchestrator sees", () => {
+describe("caseView, what the orchestrator sees", () => {
   it("never contains contact details, the token, or raw PII from the narrative", () => {
     const view = JSON.stringify(caseView(base));
     for (const secret of ["Dana Whitfield", "dana@example.com", "828-555-0101", "412 Mill Creek Rd", base.token]) {

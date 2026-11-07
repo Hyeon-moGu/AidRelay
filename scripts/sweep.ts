@@ -1,4 +1,4 @@
-// pnpm agent:sweep — runs the Case Officer over every case in status new | approved | parked.
+// pnpm agent:sweep, runs the Case Officer over every case in status new | approved | parked.
 try {
   process.loadEnvFile();
 } catch {

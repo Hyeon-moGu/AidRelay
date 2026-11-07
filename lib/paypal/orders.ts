@@ -1,4 +1,4 @@
-// PayPal Orders v2 — donations in. Server-only.
+// PayPal Orders v2, donations in. Server-only.
 import { randomUUID } from "node:crypto";
 import { centsToValue } from "@/lib/money";
 import { paypalFetch } from "@/lib/paypal/client";

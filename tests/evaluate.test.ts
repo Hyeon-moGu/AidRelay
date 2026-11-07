@@ -180,7 +180,7 @@ describe("scrubSummary", () => {
   });
 });
 
-describe("findDuplicates (P-4) — only against earlier applications", () => {
+describe("findDuplicates (P-4), only against earlier applications", () => {
   const t = 1_700_000_000_000;
   const c003 = mkCase({ id: "C-003", photoHashes: ["00ff00ff00ff00ff"], contact: { name: "T", email: "r3@example.test", phone: "+1-828-555-0103", address: "1180 Low Gap Rd, Cedar Falls" } }, t + 3);
   const c009 = mkCase({ id: "C-009", photoHashes: ["00ff00ff00ff00fe"], contact: { name: "T", email: "r9@example.test", phone: "+1-828-555-0109", address: "1180 Low Gap Road, Cedar Falls" } }, t + 9);

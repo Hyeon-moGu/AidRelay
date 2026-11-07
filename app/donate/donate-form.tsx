@@ -136,7 +136,7 @@ export function DonateForm({ clientId }: { clientId: string }) {
   if (phase.kind === "unconfigured") {
     return (
       <p className="rounded-md border border-amber-300 bg-amber-50 p-4 text-sm text-amber-900 dark:border-amber-700 dark:bg-amber-950 dark:text-amber-100">
-        The donate button needs <code>PAYPAL_CLIENT_ID</code> in <code>.env</code> (AGENTS.md §7).
+        The donate button needs <code>PAYPAL_CLIENT_ID</code> in <code>.env</code>.
       </p>
     );
   }
@@ -144,7 +144,7 @@ export function DonateForm({ clientId }: { clientId: string }) {
   if (phase.kind === "done") {
     return (
       <section className="space-y-3 rounded-md border border-emerald-300 bg-emerald-50 p-4 dark:border-emerald-700 dark:bg-emerald-950">
-        <h2 className="text-lg font-semibold">Thank you — {formatMoney(phase.amountCents)} received</h2>
+        <h2 className="text-lg font-semibold">Thank you, {formatMoney(phase.amountCents)} received</h2>
         <dl className="grid grid-cols-[auto_1fr] gap-x-4 gap-y-1 text-sm">
           <dt className="text-zinc-500">PayPal capture</dt>
           <dd className="font-mono">{phase.captureId}</dd>

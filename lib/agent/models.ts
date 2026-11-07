@@ -7,7 +7,7 @@ export const MODELS = {
   prescreen: "claude-haiku-5-5",
 } as const;
 
-/** Pinned so a stray ANTHROPIC_BASE_URL in the shell (Claude Code sets one without /v1) cannot redirect the provider. */
+/** Pinned so a stray ANTHROPIC_BASE_URL in the shell (some tools export one without /v1) cannot redirect the provider. */
 export const ANTHROPIC_BASE_URL = "https://api.anthropic.com/v1";
 
 let provider: ReturnType<typeof createAnthropic> | undefined;

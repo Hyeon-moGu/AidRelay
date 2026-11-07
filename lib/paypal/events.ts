@@ -33,7 +33,7 @@ export interface CaptureCompleted {
   status: string;
   amountCents: number;
   currency: string;
-  /** `purchase_units[].custom_id` — AidRelay sets it to the fund id. */
+  /** `purchase_units[].custom_id`, AidRelay sets it to the fund id. */
   customId?: string;
 }
 

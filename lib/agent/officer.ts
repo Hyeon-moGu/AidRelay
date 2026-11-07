@@ -148,7 +148,7 @@ async function reconcilePayoutEvent(ctx: RunContext, eventId: string): Promise<s
     result = { eventId, ...info, ...applied };
     const who = applied.caseId ?? info.caseId ?? info.senderBatchId ?? "unknown case";
     summary = applied.note
-      ? `${who}: ${event.event_type} — ${applied.note}.`
+      ? `${who}: ${event.event_type}, ${applied.note}.`
       : applied.outcome === "paid"
         ? `${who} is paid (PayPal ${event.event_type}, batch ${info.payoutBatchId ?? "?"}).`
         : applied.outcome === "failed"

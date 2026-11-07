@@ -34,7 +34,7 @@ export async function loadCaseImages(c: CaseDoc): Promise<ModelImage[]> {
 }
 
 /**
- * Deterministic P-4 check: photo hash, normalized address, email/phone — against cases that were
+ * Deterministic P-4 check: photo hash, normalized address, email/phone, against cases that were
  * created BEFORE this one, so the earlier application is never flagged because of a later copy.
  */
 export function findDuplicates(c: CaseDoc, others: readonly CaseDoc[]): DupMatch[] {
@@ -139,7 +139,7 @@ export interface DecideArgs {
 
 /**
  * Sonnet, multimodal, structured output validated against DecisionSchema, then normalized.
- * Throws NoObjectGeneratedError (unparseable answer) or APICallError (transport) — callers tell them apart.
+ * Throws NoObjectGeneratedError (unparseable answer) or APICallError (transport), callers tell them apart.
  */
 export async function decideCase(a: DecideArgs): Promise<Decision> {
   const facts = decisionUserText({

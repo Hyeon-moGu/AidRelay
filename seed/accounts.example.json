@@ -2,7 +2,7 @@
   "_readme": "Copy to seed/accounts.json and fill with your PayPal SANDBOX account emails (developer.paypal.com → Sandbox → Accounts). Never put live accounts here. The seed script substitutes {{RECIPIENT_n}}, {{BULK_nn}} and {{DONOR}} tokens in cases.json. Every case pays to its own account because policy P-4 flags a repeated contact. Create the business and donor accounts with a sandbox balance of at least $10,000. Judges get a copy of this file (with the sandbox passwords) in the README so they can log in as the donor and as a recipient.",
   "FUND_BUSINESS": { "email": "sb-fund-xxxxx@business.example.com", "password": "", "note": "Owner of the app credentials; Payouts enabled on this account's app; balance ≥ $10,000 (Payouts draws on it)" },
   "DONOR": { "email": "sb-donor-xxxxx@personal.example.com", "password": "", "note": "Makes the seed donations ($4,500 for the demo state) and the live $700 donation on camera; balance ≥ $10,000" },
-  "RECIPIENT_1": { "email": "sb-r1-xxxxx@personal.example.com", "password": "", "note": "C-001 — log in here on camera to show the balance change" },
+  "RECIPIENT_1": { "email": "sb-r1-xxxxx@personal.example.com", "password": "", "note": "C-001, log in here on camera to show the balance change" },
   "RECIPIENT_2": { "email": "sb-r2-xxxxx@personal.example.com", "password": "", "note": "C-002 (Spanish, auto-paid)" },
   "RECIPIENT_3": { "email": "sb-r3-xxxxx@personal.example.com", "password": "", "note": "C-003 (approved by the operator on camera)" },
   "RECIPIENT_4": { "email": "sb-r4-xxxxx@personal.example.com", "password": "", "note": "C-004 (approved by the operator on camera)" },

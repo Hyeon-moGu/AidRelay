@@ -1,12 +1,12 @@
 # AidRelay
 
-> Cash in a survivor's hands in minutes, not weeks — with every dollar publicly traceable.
+> Cash in a survivor's hands in minutes, not weeks, with every dollar publicly traceable.
 
 An autonomous disaster-relief **case officer**. Donations come in through PayPal, the agent verifies applications against a human-written policy, pays approved households through PayPal Payouts, and publishes an auditable ledger. Humans set the rules and handle exceptions; the agent does the work.
 
 Built for the [PayPal AI Hackathon](https://paypalaihackathon.devpost.com/) (Devpost, Nov 2026). **Sandbox only.** MIT licensed.
 
-> **Status:** Day 1 scaffold. The sections marked _TODO_ are filled in as the build progresses (see `AGENTS.md §12`).
+> **Status:** Day 1 scaffold. The sections marked _TODO_ are filled in as the build progresses.
 
 ## For judges
 
@@ -20,9 +20,7 @@ _TODO: four linked sources from `docs/CONCEPT.md §3`._
 
 _TODO: architecture diagram (text only), the event-driven agent loop, the guardrails enforced in code._
 
-- Product and purpose: [`docs/CONCEPT.md`](docs/CONCEPT.md)
 - The policy the agent follows (published on the ledger): [`docs/policy.md`](docs/policy.md)
-- Engineering rules: [`AGENTS.md`](AGENTS.md)
 
 ## PayPal APIs and AI models used
 
@@ -41,12 +39,12 @@ pnpm agent:sweep                 # let the Case Officer process the queue
 pnpm typecheck && pnpm lint && pnpm test
 ```
 
-Account and key setup, step by step: [`docs/SETUP.md`](docs/SETUP.md). Webhooks in development: expose port 3000 with ngrok and register `${APP_URL}/api/webhooks/paypal` in the PayPal developer dashboard (`AGENTS.md §6`).
+Webhooks in development: expose port 3000 with ngrok and register `${APP_URL}/api/webhooks/paypal` in the PayPal developer dashboard.
 
 ## Non-goals
 
-KYC/identity verification, live (non-sandbox) money, bank verification, multi-tenant auth, mobile app, SMS intake, email/SMS notifications, in-kind logistics. Full list in `docs/CONCEPT.md §12`.
+KYC/identity verification, live (non-sandbox) money, bank verification, multi-tenant auth, mobile app, SMS intake, email/SMS notifications, in-kind logistics.
 
 ## License
 
-MIT — see [`LICENSE`](LICENSE).
+MIT, see [`LICENSE`](LICENSE).

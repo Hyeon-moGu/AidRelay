@@ -24,7 +24,7 @@ export const TRANSITIONS: Record<ActorKind, Table> = {
     needs_info: NONE, // waits for the applicant
     needs_review: NONE, // a human owns it
     parked: ["approved"], // money arrived
-    approved: ["paying", "parked", "needs_review"], // pay it, park it, or (P-10) send it to a human — never if a human approved it, see assertTransition
+    approved: ["paying", "parked", "needs_review"], // pay it, park it, or (P-10) send it to a human, never if a human approved it, see assertTransition
     paying: NONE,
     paid: NONE,
     rejected: NONE,

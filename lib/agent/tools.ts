@@ -1,5 +1,5 @@
 // The Case Officer's tools (AGENTS.md §8). Every call is timed, written to agent_runs for the activity
-// feed, and — when it changes state — audited with the policy clause it relied on.
+// feed, and, when it changes state, audited with the policy clause it relied on.
 // The model never chooses an amount: amounts come from the policy (tier + P-6) or from a human.
 import { FieldValue, Timestamp } from "firebase-admin/firestore";
 import { APICallError, NoObjectGeneratedError, tool, type ToolSet } from "ai";
@@ -216,7 +216,7 @@ export function buildTools(ctx: RunContext): ToolSet {
             const decideCtx = { fundsAvailable, usableEvidence, velocityOk: velocity.ok };
             let next = decideStatus(decision, amount, ctx.limits, decideCtx);
 
-            // P-9.9: anything the agent could pay on its own — now (approved) or after a donation (parked) —
+            // P-9.9: anything the agent could pay on its own, now (approved) or after a donation (parked).
             // needs a second, independent evaluation that agrees on eligibility and tier.
             let second: Decision | undefined;
             let secondAgrees: boolean | undefined;

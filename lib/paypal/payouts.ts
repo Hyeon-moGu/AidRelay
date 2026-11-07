@@ -1,4 +1,4 @@
-// PayPal Payouts v1 — cash out. Server-only.
+// PayPal Payouts v1, cash out. Server-only.
 // sender_batch_id is unique per case INSTANCE (`${caseId}-${token prefix}`), so a reseeded case id never
 // collides with PayPal's 30-day idempotency window; sender_item_id stays the case id for event routing.
 import { z } from "zod";
@@ -103,7 +103,7 @@ export function outcomeForBatchStatus(status: string): PayoutOutcome {
     case "CANCELED":
       return "failed";
     default:
-      return "pending"; // PENDING, PROCESSING, SUCCESS — the item event carries the per-case truth
+      return "pending"; // PENDING, PROCESSING, SUCCESS, the item event carries the per-case truth
   }
 }
 

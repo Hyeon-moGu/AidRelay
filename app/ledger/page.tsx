@@ -7,7 +7,7 @@ import { getFund } from "@/lib/db/repos/fund";
 import { fundBalanceCents, type DonationDoc, type FundDoc } from "@/lib/db/types";
 import { formatMoney } from "@/lib/money";
 
-export const metadata: Metadata = { title: "Public ledger — AidRelay" };
+export const metadata: Metadata = { title: "Public ledger · AidRelay" };
 export const dynamic = "force-dynamic";
 
 export default async function LedgerPage() {

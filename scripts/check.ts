@@ -1,4 +1,4 @@
-// pnpm check — verifies every external service in .env without moving money.
+// pnpm check, verifies every external service in .env without moving money.
 // Each check builds its own client from process.env so a missing GCP value never hides a PayPal result.
 try {
   process.loadEnvFile();
@@ -90,7 +90,7 @@ async function main() {
     try {
       await ref.set({ at: new Date().toISOString() });
     } catch (err) {
-      throw new Error(`${err instanceof Error ? err.message.split("\n")[0] : String(err)} — using ${credentialHint}`);
+      throw new Error(`${err instanceof Error ? err.message.split("\n")[0] : String(err)}, using ${credentialHint}`);
     }
     const snap = await ref.get();
     await ref.delete();

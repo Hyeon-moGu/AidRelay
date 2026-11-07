@@ -33,7 +33,7 @@ export class GuardrailError extends Error {
   }
 }
 
-/** AGENTS.md §1.2 — the agent may never set `rejected`. (The full state machine is in transitions.ts.) */
+/** AGENTS.md §1.2, the agent may never set `rejected`. (The full state machine is in transitions.ts.) */
 export function assertAgentStatusWrite(status: CaseStatus): void {
   if (!AGENT_WRITABLE_STATUSES.includes(status)) {
     throw new GuardrailError("agent_cannot_reject", `agent may not set status ${status}`, "P-9");

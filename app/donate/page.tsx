@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { DonateForm } from "./donate-form";
 
-export const metadata: Metadata = { title: "Donate — AidRelay" };
+export const metadata: Metadata = { title: "Donate · AidRelay" };
 
 export default function DonatePage() {
   // The client id is public; read at request time on the server so the Docker image needs no build-time env.

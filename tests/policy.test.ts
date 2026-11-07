@@ -40,7 +40,7 @@ describe("docs/policy.md and lib/agent/policy.ts agree", () => {
   });
 
   it("policy version matches", () => {
-    expect(policyMd).toMatch(new RegExp(`^# Relief Fund Policy — ${POLICY.version}`, "m"));
+    expect(policyMd).toMatch(new RegExp(`^# Relief Fund Policy ${POLICY.version}`, "m"));
   });
 
   it("P-7 human ceiling matches humanMaxCents", () => {

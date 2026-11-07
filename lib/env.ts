@@ -14,7 +14,7 @@ const EnvSchema = z.object({
 
   FIREBASE_PROJECT_ID: z.string().min(1),
   /**
-   * Path to a service-account JSON key. Optional: leave it empty to use Application Default Credentials —
+   * Path to a service-account JSON key. Optional: leave it empty to use Application Default Credentials.
    * `gcloud auth application-default login` on a laptop, or the service account attached to the Cloud Run service.
    */
   GOOGLE_APPLICATION_CREDENTIALS: z.string().optional(),

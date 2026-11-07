@@ -39,7 +39,7 @@ export interface CreatePayoutArgs {
 
 /**
  * The only path that calls PayPal Payouts. Caller must already have passed guardrails.assertPayable.
- * Step 1 (transaction): claim payouts/{caseId} — fails if any payout exists for the case — move the case
+ * Step 1 (transaction): claim payouts/{caseId}, fails if any payout exists for the case, move the case
  * to `paying`, and (P-10) record the auto approval. Step 2: PayPal. Step 3 (transaction): record the batch
  * id without clobbering a status a fast webhook may already have written. A crash between 1 and 2 leaves a
  * `creating` record that blocks a second attempt until a human reconciles it (never two payouts).
@@ -136,7 +136,7 @@ export async function createPayoutForCase(args: CreatePayoutArgs): Promise<Payou
       events: FieldValue.arrayUnion({ type: "create.failed", source: "api", at: Timestamp.now() }),
     });
     // Reservation is kept; the case goes back to approved. A human clears the record after checking PayPal
-    // (a timed-out call may still have created the batch — its webhooks reconcile through applyPayoutEvent).
+    // (a timed-out call may still have created the batch, its webhooks reconcile through applyPayoutEvent).
     await setCaseStatus(args.caseId, "approved", {
       actor: "system",
       action: "payout.create_failed",

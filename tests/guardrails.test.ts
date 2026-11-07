@@ -67,7 +67,7 @@ describe("assertAgentStatusWrite (AGENTS.md §1.2)", () => {
   });
 });
 
-describe("autoApproveCheck — every P-9 decision condition", () => {
+describe("autoApproveCheck, every P-9 decision condition", () => {
   it("passes a clean tier-2 $250 case with evidence", () => {
     expect(autoApproveCheck(eligible, 25_000, limits, 1)).toEqual({ ok: true });
   });
@@ -177,7 +177,7 @@ describe("assertPayable", () => {
   });
 });
 
-describe("decideStatus — the ten seed cases and the hardening rules", () => {
+describe("decideStatus, the ten seed cases and the hardening rules", () => {
   const d = (patch: Partial<Decision>): Decision => ({ ...eligible, ...patch });
 
   it("C-001 / C-002 / C-006: eligible tier 2 $250 → approved", () => {

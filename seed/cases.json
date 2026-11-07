@@ -5,7 +5,7 @@
     "name": "Cedar County Flood Relief Fund",
     "currency": "USD",
     "policyVersion": "v1",
-    "_note": "Fund starts at raised = 0. Donations are never seeded: an Orders v2 capture needs the donor's browser approval, and the ledger may only show real sandbox captures (AGENTS.md §11). Make them by hand on /donate as DONOR after `pnpm seed` — at least $2,750 for the full sweep, exactly $4,500 for the demo state (seed/README.md)."
+    "_note": "Fund starts at raised = 0. Donations are never seeded: an Orders v2 capture needs the donor's browser approval, and the ledger may only show real sandbox captures (AGENTS.md §11). Make them by hand on /donate as DONOR after `pnpm seed`, at least $2,750 for the full sweep, exactly $4,500 for the demo state (seed/README.md)."
   },
   "cases": [
     {
@@ -42,7 +42,7 @@
       "zip": "28504",
       "householdSize": 4,
       "requestedAmountCents": 50000,
-      "narrative": "Our house is on Low Gap Road and the water reached the windows. The fire department evacuated us by boat Wednesday morning. We're staying with my sister in Asheville. Everything on the ground floor is gone — furniture, kids' school stuff, our documents. We can't go back until the county inspects the foundation.",
+      "narrative": "Our house is on Low Gap Road and the water reached the windows. The fire department evacuated us by boat Wednesday morning. We're staying with my sister in Asheville. Everything on the ground floor is gone, furniture, kids' school stuff, our documents. We can't go back until the county inspects the foundation.",
       "photos": ["photos/C-003-house-windows.jpg", "photos/C-003-interior-mud.jpg", "photos/C-003-evac-notice.jpg"],
       "docs": [],
       "contact": { "name": "Terrence Boyd", "email": "{{RECIPIENT_3}}", "phone": "+1-828-555-0103", "address": "1180 Low Gap Rd, Cedar Falls" },
@@ -146,7 +146,7 @@
       "contact": { "name": "M. Stone", "email": "{{RECIPIENT_10}}", "phone": "+1-828-555-0110", "address": "55 Main St, Cedar Falls" },
       "_photoBrief": "Photo: a tidy, dry, well-lit living room with no visible damage.",
       "_expected": { "eligibility": "needs_info", "tier": null, "recommendedAmountCents": null, "redFlags": ["amount_outlier", "evidence_mismatch"], "autoPaid": false, "status": "needs_review", "clauses": ["P-3", "P-7"] },
-      "_demoRole": "Suspicious: generic narrative, amount 5× the top tier, photo shows no damage. Flagged, not rejected — a human decides."
+      "_demoRole": "Suspicious: generic narrative, amount 5× the top tier, photo shows no damage. Flagged, not rejected, a human decides."
     }
   ],
   "bulk": {
