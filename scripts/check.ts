@@ -114,8 +114,8 @@ async function main() {
   await step("anthropic", ["ANTHROPIC_API_KEY"], async () => {
     const { generateText } = await import("ai");
     const { createAnthropic } = await import("@ai-sdk/anthropic");
-    const { MODELS } = await import("@/lib/agent/models");
-    const model = createAnthropic({ apiKey: env.ANTHROPIC_API_KEY })(MODELS.prescreen);
+    const { ANTHROPIC_BASE_URL, MODELS } = await import("@/lib/agent/models");
+    const model = createAnthropic({ apiKey: env.ANTHROPIC_API_KEY, baseURL: ANTHROPIC_BASE_URL })(MODELS.prescreen);
     const r = await generateText({ model, prompt: "Reply with the single word OK." });
     return `${MODELS.prescreen} answered "${r.text.trim().slice(0, 20)}" (${r.usage.inputTokens ?? 0} in / ${r.usage.outputTokens ?? 0} out tokens)`;
   });

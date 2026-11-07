@@ -9,8 +9,11 @@ export const MODELS = {
 
 let provider: ReturnType<typeof createAnthropic> | undefined;
 
+/** Pinned so a stray ANTHROPIC_BASE_URL in the shell (Claude Code sets one without /v1) cannot redirect the provider. */
+export const ANTHROPIC_BASE_URL = "https://api.anthropic.com/v1";
+
 function anthropic() {
-  provider ??= createAnthropic({ apiKey: getEnv().ANTHROPIC_API_KEY });
+  provider ??= createAnthropic({ apiKey: getEnv().ANTHROPIC_API_KEY, baseURL: ANTHROPIC_BASE_URL });
   return provider;
 }
 
