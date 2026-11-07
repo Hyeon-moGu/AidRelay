@@ -40,7 +40,7 @@ pnpm agent:sweep                 # let the Case Officer process the queue
 pnpm typecheck && pnpm lint && pnpm test
 ```
 
-Webhooks in development: expose port 3000 (e.g. ngrok) and register `${APP_URL}/api/webhooks/paypal` in the PayPal developer dashboard (`AGENTS.md §6`).
+Account and key setup, step by step: [`docs/SETUP.md`](docs/SETUP.md). Webhooks in development: expose port 3000 with ngrok and register `${APP_URL}/api/webhooks/paypal` in the PayPal developer dashboard (`AGENTS.md §6`).
 
 ## Non-goals
 
