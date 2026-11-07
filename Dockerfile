@@ -11,7 +11,8 @@ ENV NEXT_TELEMETRY_DISABLED=1 NEXT_STANDALONE=1
 RUN npm install -g pnpm@12.18.0
 COPY --from=deps /app/node_modules ./node_modules
 COPY . .
-RUN pnpm build
+# public/ is optional in the repo; make sure the copy below always has a source.
+RUN mkdir -p public && pnpm build
 
 FROM node:22-alpine AS run
 WORKDIR /app
@@ -22,6 +23,8 @@ COPY --from=build --chown=app:app /app/.next/static ./.next/static
 COPY --from=build --chown=app:app /app/public ./public
 # policy.md is read at runtime by the agent (lib/agent/policy.ts).
 COPY --from=build --chown=app:app /app/policy.md ./policy.md
+# seed/cases.json feeds the /apply?demo=C-00x prefill used in the demo video (lib/demo-prefill.ts).
+COPY --from=build --chown=app:app /app/seed/cases.json ./seed/cases.json
 USER app
 EXPOSE 8080
 CMD ["node", "server.js"]
