@@ -20,3 +20,5 @@ main().then(
     process.exit(1);
   },
 );
+
+export {};

@@ -16,6 +16,7 @@
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
     "test:watch": "vitest",
+    "check": "tsx scripts/check.ts",
     "seed": "tsx scripts/seed.ts",
     "agent:sweep": "tsx scripts/sweep.ts"
   },

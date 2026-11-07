@@ -34,6 +34,7 @@ _TODO: Orders v2 (donations), Payouts v1 (disbursement), Webhooks (signature-ver
 pnpm install
 cp .env.example .env            # fill in PayPal sandbox, Anthropic and GCP values
 cp seed/accounts.example.json seed/accounts.json
+pnpm check                       # every service reachable? (PayPal, Firestore, GCS, Anthropic)
 pnpm seed                        # fund + cases + photos (donations are made by hand on /donate)
 pnpm dev                         # http://localhost:3000
 pnpm agent:sweep                 # let the Case Officer process the queue
