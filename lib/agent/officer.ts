@@ -3,14 +3,14 @@
 import { generateText, stepCountIs } from "ai";
 import { Timestamp } from "firebase-admin/firestore";
 import { limitsFromEnv } from "@/lib/agent/guardrails";
-import { addUsage, officerModel, type Usage } from "@/lib/agent/models";
+import { addUsage, newUsage, officerModel, type Usage } from "@/lib/agent/models";
 import { loadPolicyText } from "@/lib/agent/policy";
 import { allocationPrompt, caseCreatedPrompt, OFFICER_SYSTEM, policySystemMessage } from "@/lib/agent/prompts";
 import { buildTools, type RunContext } from "@/lib/agent/tools";
 import type { AgentRunRequest } from "@/lib/agent/trigger";
 import { appendToolCall, finishRun, startRun } from "@/lib/db/repos/agentRuns";
-import { listCases } from "@/lib/db/repos/cases";
-import { applyPayoutEvent } from "@/lib/db/repos/payouts";
+import { listCases, resetStaleEvaluating } from "@/lib/db/repos/cases";
+import { applyPayoutEvent, refreshPayoutStatus } from "@/lib/db/repos/payouts";
 import { getWebhookEvent } from "@/lib/db/repos/webhookEvents";
 import { getEnv } from "@/lib/env";
 import { WebhookEventSchema } from "@/lib/paypal/events";
@@ -19,6 +19,8 @@ import { parsePayoutEvent } from "@/lib/paypal/payouts";
 const MAX_STEPS_CASE = 16;
 const MAX_STEPS_ALLOCATION = 48;
 const MAX_NEW_CASES_PER_SWEEP = 25;
+/** A `paying` case older than this is polled on every sweep in case its webhook never arrived. */
+const PAYING_POLL_AFTER_MS = 2 * 60_000;
 
 export interface RunResult {
   runId: string;
@@ -35,7 +37,7 @@ export async function runCaseOfficer(req: AgentRunRequest): Promise<RunResult> {
     trigger: req.trigger,
     limits: limitsFromEnv(env),
     policyText: await loadPolicyText(),
-    usage: { inputTokens: 0, outputTokens: 0, modelCalls: 0 },
+    usage: newUsage(),
   };
 
   try {
@@ -80,6 +82,7 @@ export async function runCaseOfficer(req: AgentRunRequest): Promise<RunResult> {
 async function runSession(ctx: RunContext, userPrompt: string, maxSteps: number): Promise<string> {
   const result = await generateText({
     model: officerModel(),
+    allowSystemInMessages: true,
     messages: [{ role: "system", content: OFFICER_SYSTEM }, policySystemMessage(ctx.policyText), { role: "user", content: userPrompt }],
     tools: buildTools(ctx),
     stopWhen: stepCountIs(maxSteps),
@@ -88,9 +91,16 @@ async function runSession(ctx: RunContext, userPrompt: string, maxSteps: number)
   return result.text.trim() || `(no summary; ${result.steps.length} step(s))`;
 }
 
-/** Scheduled pass: every new case gets its own session, then one allocation session for approved + parked cases. */
+/**
+ * Scheduled pass: stale locks back to `new`, every new case gets its own session, one allocation session
+ * for approved + parked cases, and a PayPal poll for `paying` cases whose webhook may have been lost.
+ */
 async function runSweep(ctx: RunContext): Promise<string> {
   const summaries: string[] = [];
+
+  const reset = await resetStaleEvaluating();
+  if (reset.length) summaries.push(`[locks] reset stale evaluation on ${reset.join(", ")}`);
+
   const fresh = (await listCases(["new"])).slice(0, MAX_NEW_CASES_PER_SWEEP);
   for (const c of fresh) {
     try {
@@ -99,10 +109,25 @@ async function runSweep(ctx: RunContext): Promise<string> {
       summaries.push(`[${c.id}] failed: ${err instanceof Error ? err.message : String(err)}`);
     }
   }
+
   const waiting = await listCases(["approved", "parked"]);
   if (waiting.length > 0) {
     summaries.push(`[allocation] ${await runSession(ctx, allocationPrompt(`Scheduled sweep: ${waiting.length} case(s) are waiting for money`), MAX_STEPS_ALLOCATION)}`);
   }
+
+  const now = Date.now();
+  const paying = (await listCases(["paying"])).filter((c) => now - (c.timestamps.approved?.toMillis() ?? c.timestamps.created.toMillis()) >= PAYING_POLL_AFTER_MS);
+  for (const c of paying) {
+    const started = Date.now();
+    try {
+      const r = await refreshPayoutStatus(c.id);
+      await appendToolCall(ctx.runId, { name: "poll_payout", args: { caseId: c.id }, result: r.applied, policyClause: "P-9", ms: Date.now() - started, at: Timestamp.now() });
+      summaries.push(`[${c.id}] polled PayPal: ${r.applied.map((a) => a.status).join(", ") || "no items yet"}`);
+    } catch (err) {
+      summaries.push(`[${c.id}] poll failed: ${err instanceof Error ? err.message : String(err)}`);
+    }
+  }
+
   return summaries.length ? summaries.join("\n") : "Sweep: nothing to do.";
 }
 
@@ -121,12 +146,14 @@ async function reconcilePayoutEvent(ctx: RunContext, eventId: string): Promise<s
   } else {
     const applied = await applyPayoutEvent(info, "webhook", event.event_type);
     result = { eventId, ...info, ...applied };
-    summary =
-      applied.outcome === "paid"
-        ? `${info.caseId} is paid (PayPal ${event.event_type}, batch ${info.payoutBatchId ?? "?"}).`
+    const who = applied.caseId ?? info.caseId ?? info.senderBatchId ?? "unknown case";
+    summary = applied.note
+      ? `${who}: ${event.event_type} — ${applied.note}.`
+      : applied.outcome === "paid"
+        ? `${who} is paid (PayPal ${event.event_type}, batch ${info.payoutBatchId ?? "?"}).`
         : applied.outcome === "failed"
-          ? `${info.caseId}: payout ${info.status}${info.error ? ` (${info.error})` : ""}; reservation released and the case is back in the human queue.`
-          : `${info.caseId}: payout ${info.status} recorded; waiting for a final status.`;
+          ? `${who}: payout ${info.status}${info.error ? ` (${info.error})` : ""}; reservation released and the case is back in the human queue.`
+          : `${who}: payout ${info.status} recorded; waiting for a final status.`;
   }
   await appendToolCall(ctx.runId, { name: "reconcile_payout", args: { eventId }, result, policyClause: "P-9", ms: Date.now() - started, at: Timestamp.now() });
   return summary;

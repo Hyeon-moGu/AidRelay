@@ -1,8 +1,11 @@
 // PayPal webhook receiver: verify signature → claim event id → handle → mark handled (AGENTS.md §6).
 // PayPal retries any non-2xx response, so an event is only marked handled once its side effects committed.
+// Payout events are reconciled INLINE (deterministic, no model) so a lost self-call can never lose `paid`.
+import { runCaseOfficer } from "@/lib/agent/officer";
 import { enqueueAgentRun } from "@/lib/agent/trigger";
-import { recordDonationCapture } from "@/lib/db/repos/donations";
+import { getDonation, recordDonationCapture } from "@/lib/db/repos/donations";
 import { claimWebhookEvent, markWebhookHandled } from "@/lib/db/repos/webhookEvents";
+import { getEnv } from "@/lib/env";
 import { fail, ok } from "@/lib/http";
 import { stripPii } from "@/lib/ledger/anonymize";
 import {
@@ -17,6 +20,7 @@ import { readWebhookHeaders, verifyWebhookSignature, webhookConfigured } from "@
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
+export const maxDuration = 120;
 
 export async function POST(req: Request) {
   if (!webhookConfigured()) return fail("webhook not configured: set PAYPAL_WEBHOOK_ID", 503);
@@ -65,6 +69,12 @@ async function handleEvent(event: WebhookEvent): Promise<Record<string, unknown>
       capture.orderId ?? (await getCapture(capture.captureId)).supplementary_data?.related_ids?.order_id;
     if (!orderId) return { type, skipped: "capture carries no order id" };
 
+    // Provenance: only orders this app created, or captures tagged with this fund (custom_id), count as donations.
+    const known = await getDonation(orderId);
+    if (!known && capture.customId !== getEnv().FUND_ID) {
+      return { type, orderId, ignored: `capture for an unknown order (custom_id ${capture.customId ?? "none"})` };
+    }
+
     const result = await recordDonationCapture({
       orderId,
       captureId: capture.captureId,
@@ -84,8 +94,9 @@ async function handleEvent(event: WebhookEvent): Promise<Record<string, unknown>
   }
 
   if (isPayoutEvent(type)) {
-    enqueueAgentRun({ trigger: "payout.webhook", eventId: event.id });
-    return { type, forwarded: "payout.webhook" };
+    // Inline and awaited: the money state must be settled before PayPal hears 200.
+    const run = await runCaseOfficer({ trigger: "payout.webhook", eventId: event.id });
+    return { type, runId: run.runId, summary: run.summary };
   }
 
   return { type, ignored: true };

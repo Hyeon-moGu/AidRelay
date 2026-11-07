@@ -1,17 +1,14 @@
 // P-10 bookkeeping: every payout the agent made without a human, for the rolling-window limits.
+// Records are written inside the payout claim transaction (lib/db/repos/payouts.ts), so a crash after
+// PayPal accepted a batch can never undercount; a PayPal refusal overcounts, which is the safe direction.
 import { Timestamp } from "firebase-admin/firestore";
 import type { RecentAutoPayout } from "@/lib/agent/guardrails";
 import { col, getDb } from "@/lib/db/firestore";
 
-interface AutoApprovalDoc {
+export interface AutoApprovalDoc {
   caseId: string;
   amountCents: number;
   at: Timestamp;
-}
-
-export async function recordAutoPayout(caseId: string, amountCents: number): Promise<void> {
-  const doc: AutoApprovalDoc = { caseId, amountCents, at: Timestamp.now() };
-  await getDb().collection(col.autoApprovals).doc(caseId).set(doc);
 }
 
 /** Auto payouts in the last `hours` (default 24). Single-field range query: no composite index needed. */

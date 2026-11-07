@@ -110,6 +110,49 @@ export async function setCaseStatus(
   });
 }
 
+/** A run holds the evaluation lock this long before another run may reclaim the case. */
+export const EVALUATION_LOCK_MS = 10 * 60_000;
+
+export type EvaluationClaim = "claimed" | "busy" | "not_claimable";
+
+/**
+ * Takes the evaluation lock: new → evaluating, or re-claims an `evaluating` case whose lock is stale
+ * (a crashed run). A fresh lock held by another run answers "busy", so case.created and a concurrent
+ * sweep never both pay for the same Haiku + Sonnet pipeline.
+ */
+export async function claimForEvaluation(id: string, nowMs = Date.now()): Promise<EvaluationClaim> {
+  const db = getDb();
+  const ref = db.collection(col.cases).doc(id);
+  return db.runTransaction(async (tx) => {
+    const snap = await tx.get(ref);
+    if (!snap.exists) throw new Error(`case ${id} not found`);
+    const c = snap.data() as CaseDoc;
+    const now = Timestamp.fromMillis(nowMs);
+    if (c.status === "new") {
+      tx.update(ref, { status: "evaluating", evaluatingSince: now });
+      auditInTx(tx, { actor: "agent", caseId: id, action: "case.evaluating", before: { status: "new" }, after: { status: "evaluating" }, reason: "evaluation started" });
+      return "claimed";
+    }
+    if (c.status === "evaluating") {
+      const since = c.evaluatingSince?.toMillis() ?? 0;
+      if (nowMs - since < EVALUATION_LOCK_MS) return "busy";
+      tx.update(ref, { evaluatingSince: now });
+      auditInTx(tx, { actor: "agent", caseId: id, action: "case.evaluation_reclaimed", reason: `lock older than ${EVALUATION_LOCK_MS / 60_000} min` });
+      return "claimed";
+    }
+    return "not_claimable";
+  });
+}
+
+/** Hands stale `evaluating` cases (crashed runs) back to `new` so the sweep picks them up. */
+export async function resetStaleEvaluating(nowMs = Date.now()): Promise<string[]> {
+  const stuck = (await listCases(["evaluating"])).filter((c) => nowMs - (c.evaluatingSince?.toMillis() ?? 0) >= EVALUATION_LOCK_MS);
+  for (const c of stuck) {
+    await setCaseStatus(c.id, "new", { actor: "system", action: "case.evaluation_reset", reason: "stale evaluation lock" });
+  }
+  return stuck.map((c) => c.id);
+}
+
 /** Field update without a status change, audited. */
 export async function updateCase(id: string, patch: Partial<Omit<CaseDoc, "id">>, audit: CaseAudit): Promise<void> {
   const db = getDb();

@@ -18,6 +18,7 @@ export type GuardrailCode =
   | "low_confidence"
   | "red_flags"
   | "no_evidence"
+  | "no_second_evaluation"
   | "velocity_limit";
 
 export class GuardrailError extends Error {
@@ -55,6 +56,8 @@ export interface AutoApproveLimits {
   minUsableEvidence: number;
   /** P-7: ceiling for an amount a human sets. */
   humanMaxCents: number;
+  /** P-9.9: an unattended payout needs a second, independent evaluation that agrees (AUTO_APPROVE_DOUBLE_CHECK). */
+  requireSecondEvaluation: boolean;
   /** P-10 */
   velocity: VelocityLimits;
 }
@@ -123,6 +126,8 @@ export interface PayableInput {
   existingPayout: boolean;
   /** Usable photos/documents on file; unknown counts as none for the auto path. */
   usableEvidenceCount?: number;
+  /** P-9.9: whether the second evaluation agreed on eligibility and tier; unknown counts as no. */
+  secondEvaluationAgrees?: boolean;
   /** Auto payouts in the last 24 h (for P-10); omit to skip the velocity check. */
   recentAutoPayouts?: readonly RecentAutoPayout[];
   nowMs?: number;
@@ -161,6 +166,9 @@ export function assertPayable(input: PayableInput): { path: PayablePath } {
 
   const auto = autoApproveCheck(input.aiDecision, input.amountCents, input.limits, input.usableEvidenceCount ?? 0);
   if (!auto.ok) throw new GuardrailError(auto.code, `auto-approve refused: ${auto.detail}`, auto.clause);
+  if (input.limits.requireSecondEvaluation && input.secondEvaluationAgrees !== true) {
+    throw new GuardrailError("no_second_evaluation", "auto-approve refused: no agreeing second evaluation on file", "P-9.9");
+  }
   if (input.recentAutoPayouts) {
     const v = velocityCheck(input.recentAutoPayouts, input.amountCents, input.nowMs ?? Date.now(), input.limits.velocity);
     if (!v.ok) throw new GuardrailError(v.code, `auto-approve refused: ${v.detail}`, v.clause);
@@ -222,13 +230,18 @@ export function decideStatus(decision: Decision, amountCents: number | null, lim
   return { status: "approved", clause: "P-9", reason: "all auto-approve conditions hold" };
 }
 
-export function limitsFromEnv(env: { AUTO_APPROVE_LIMIT: number; AUTO_APPROVE_MIN_CONFIDENCE: number }): AutoApproveLimits {
+export function limitsFromEnv(env: {
+  AUTO_APPROVE_LIMIT: number;
+  AUTO_APPROVE_MIN_CONFIDENCE: number;
+  AUTO_APPROVE_DOUBLE_CHECK?: boolean;
+}): AutoApproveLimits {
   return {
     limitCents: env.AUTO_APPROVE_LIMIT * 100,
     minConfidence: env.AUTO_APPROVE_MIN_CONFIDENCE,
     minTier: POLICY.autoApproveMinTier,
     minUsableEvidence: POLICY.autoApproveMinEvidence,
     humanMaxCents: humanMaxCents(),
+    requireSecondEvaluation: env.AUTO_APPROVE_DOUBLE_CHECK ?? true,
     velocity: { ...POLICY.velocity },
   };
 }

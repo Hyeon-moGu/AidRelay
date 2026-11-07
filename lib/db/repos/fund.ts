@@ -70,6 +70,9 @@ export async function reserveFunds(caseId: string, amountCents: number, meta: Fu
     if (!cSnap.exists) throw new Error(`case ${caseId} not found`);
     const fund = fSnap.exists ? (fSnap.data() as FundDoc) : defaultFund();
     const c = cSnap.data() as CaseDoc;
+    if (c.status !== "approved" && c.status !== "parked") {
+      throw new GuardrailError("status_not_payable", `cannot reserve funds for a ${c.status} case`, "P-9.6");
+    }
     const already = c.reservedCents ?? 0;
     const available = fundBalanceCents(fund) + already;
     if (available < amountCents) throw new InsufficientFundsError(amountCents, available);
@@ -126,6 +129,39 @@ export async function releaseFunds(
       reason: meta.reason,
     });
     return { releasedCents };
+  });
+}
+
+/**
+ * Money came back after a SUCCESS (REFUNDED / REVERSED / RETURNED): takes the amount out of paidCents
+ * and hands the case to a human. Idempotent: a case that is no longer `paid` is left alone.
+ */
+export async function reversePaid(caseId: string, amountCents: number, meta: FundChangeMeta & { payoutBatchId?: string }): Promise<{ changed: boolean }> {
+  const db = getDb();
+  const fRef = fundRef();
+  const cRef = db.collection(col.cases).doc(caseId);
+  return db.runTransaction(async (tx) => {
+    const [fSnap, cSnap] = await Promise.all([tx.get(fRef), tx.get(cRef)]);
+    if (!cSnap.exists || !fSnap.exists) throw new Error(`fund or case ${caseId} missing`);
+    const fund = fSnap.data() as FundDoc;
+    const c = cSnap.data() as CaseDoc;
+    if (c.status !== "paid") return { changed: false };
+    assertTransition("system", c.status, "needs_review");
+    const paidCents = Math.max(0, fund.paidCents - amountCents);
+    const now = Timestamp.now();
+    tx.update(fRef, { paidCents, updatedAt: now });
+    tx.update(cRef, { status: "needs_review" });
+    auditInTx(tx, {
+      actor: meta.actor,
+      caseId,
+      action: "payout.reversed",
+      policyClause: meta.policyClause,
+      before: { status: "paid", paidCents: fund.paidCents },
+      after: { status: "needs_review", paidCents },
+      reason: meta.reason,
+      refs: meta.payoutBatchId ? { payoutBatchId: meta.payoutBatchId } : undefined,
+    });
+    return { changed: true };
   });
 }
 

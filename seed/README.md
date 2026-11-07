@@ -14,7 +14,7 @@ The agent is multimodal: placeholder images will make it answer `needs_info` for
 - Bulk pool images must all be different (dedupe compares perceptual hashes).
 - Save as JPEG ≤ 1024px on the long side; the app resizes anyway, but smaller uploads keep the seed fast.
 
-Until the images exist, `pnpm seed --placeholders` writes labeled gray images so the pipeline can be exercised; expect `needs_info` decisions in that mode.
+Until the images exist, `pnpm seed --placeholders` writes labeled gray images so the pipeline can be exercised; expect `needs_info` decisions in that mode. Placeholder images also hash almost identically (dHash of a flat image), so every case after the first is flagged `duplicate_photo_hash` and lands in `needs_review` — that is the dedupe working, not a bug. Only generated photos exercise the real decision path.
 
 ## Running
 ```bash

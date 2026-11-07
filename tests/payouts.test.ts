@@ -9,15 +9,16 @@ import {
 } from "@/lib/paypal/payouts";
 
 describe("buildPayoutRequest (AGENTS.md §6 call shape)", () => {
-  it("keys the batch and the item on the case id and formats cents as a decimal string", () => {
+  it("keys the batch on the per-instance id, the item on the case id, and formats cents as a decimal string", () => {
     const body = buildPayoutRequest({
       caseId: "C-001",
+      senderBatchId: "C-001-9f3a1c2b",
       recipientEmail: "sb-r1@personal.example.com",
       amountCents: 25_000,
       currency: "USD",
       note: "Relief grant",
     });
-    expect(body.sender_batch_header.sender_batch_id).toBe("C-001");
+    expect(body.sender_batch_header.sender_batch_id).toBe("C-001-9f3a1c2b");
     expect(body.items).toHaveLength(1);
     expect(body.items[0]).toMatchObject({
       recipient_type: "EMAIL",
@@ -92,7 +93,7 @@ describe("parsePayoutEvent", () => {
     expect(parsePayoutEvent(failed)).toMatchObject({ outcome: "failed", error: "Receiver is unregistered" });
   });
 
-  it("maps a batch event via sender_batch_id", () => {
+  it("maps a batch event to its sender_batch_id (the repo resolves the case)", () => {
     const batch = WebhookEventSchema.parse({
       id: "WH-BATCH-1",
       event_type: "PAYMENT.PAYOUTSBATCH.DENIED",
@@ -100,13 +101,13 @@ describe("parsePayoutEvent", () => {
         batch_header: {
           payout_batch_id: "QJ8WZ3ZGN8V5C",
           batch_status: "DENIED",
-          sender_batch_header: { sender_batch_id: "C-001", email_subject: "x" },
+          sender_batch_header: { sender_batch_id: "C-001-9f3a1c2b", email_subject: "x" },
         },
       },
     });
     expect(parsePayoutEvent(batch)).toEqual({
       kind: "batch",
-      caseId: "C-001",
+      senderBatchId: "C-001-9f3a1c2b",
       payoutBatchId: "QJ8WZ3ZGN8V5C",
       status: "DENIED",
       outcome: "failed",
@@ -119,11 +120,11 @@ describe("parsePayoutEvent", () => {
 });
 
 describe("infoFromBatchItem (polling)", () => {
-  it("falls back to the batch's sender_batch_id when the item has no sender_item_id", () => {
+  it("carries both the item's case id and the batch's sender id", () => {
     const info = infoFromBatchItem(
-      { batch_header: { payout_batch_id: "B1", batch_status: "SUCCESS", sender_batch_header: { sender_batch_id: "C-002" } } },
-      { payout_item_id: "I1", transaction_status: "UNCLAIMED", payout_item: { amount: { value: "250.00", currency: "USD" }, receiver: "x@y" } },
+      { batch_header: { payout_batch_id: "B1", batch_status: "SUCCESS", sender_batch_header: { sender_batch_id: "C-002-abcd1234" } } },
+      { payout_item_id: "I1", transaction_status: "UNCLAIMED", payout_item: { amount: { value: "250.00", currency: "USD" }, receiver: "x@y", sender_item_id: "C-002" } },
     );
-    expect(info).toMatchObject({ caseId: "C-002", status: "UNCLAIMED", outcome: "pending", amountCents: 25_000 });
+    expect(info).toMatchObject({ caseId: "C-002", senderBatchId: "C-002-abcd1234", payoutBatchId: "B1", status: "UNCLAIMED", outcome: "pending", amountCents: 25_000 });
   });
 });

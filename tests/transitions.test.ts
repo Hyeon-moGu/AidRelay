@@ -63,10 +63,11 @@ describe("system transitions", () => {
     expect(canTransition("system", "paying", "approved")).toBe(true);
     expect(canTransition("system", "needs_info", "new")).toBe(true);
   });
-  it("does not approve or reject on its own", () => {
+  it("does not approve or reject on its own; may only reopen a paid case when money came back", () => {
     expect(canTransition("system", "needs_review", "approved")).toBe(false);
     expect(canTransition("system", "new", "rejected")).toBe(false);
-    expect(canTransition("system", "paid", "needs_review")).toBe(false);
+    expect(canTransition("system", "paid", "approved")).toBe(false);
+    expect(canTransition("system", "paid", "needs_review")).toBe(true); // REFUNDED / REVERSED / RETURNED after SUCCESS
   });
 });
 

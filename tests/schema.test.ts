@@ -24,16 +24,14 @@ describe("DecisionSchema", () => {
     expect(DecisionSchema.safeParse(snake).success).toBe(false);
   });
 
-  it("rejects unknown red flags and malformed clause ids", () => {
+  it("rejects unknown red flags (an enum the provider does send to the model)", () => {
+    expect(DecisionSchema.safeParse({ ...conceptExample, redFlags: ["looks_odd"] }).success).toBe(false);
+  });
+
+  it("is permissive on formats the provider strips (sub-clause ids, long summaries, out-of-range confidence)", () => {
     expect(
-      DecisionSchema.safeParse({ ...conceptExample, redFlags: ["looks_odd"] }).success,
-    ).toBe(false);
-    expect(
-      DecisionSchema.safeParse({
-        ...conceptExample,
-        reasons: [{ clause: "section 3", evidence: "x" }],
-      }).success,
-    ).toBe(false);
+      DecisionSchema.safeParse({ ...conceptExample, reasons: [{ clause: "P-9.3", evidence: "x" }], ledgerSummary: "x".repeat(200), confidence: 1.4 }).success,
+    ).toBe(true);
   });
 });
 

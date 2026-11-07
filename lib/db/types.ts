@@ -111,6 +111,10 @@ export interface CaseDoc {
   aiDecisionSecond?: Decision;
   /** P-9.8: usable photos/documents counted at evaluation time. */
   usableEvidenceCount?: number;
+  /** P-9.9: the second evaluation matched the first on eligibility and tier. */
+  secondEvaluationAgrees?: boolean;
+  /** Set while a run holds the evaluation lock; a stale lock is reclaimed after 10 minutes. */
+  evaluatingSince?: Timestamp;
   /** Amount the fund will pay: the human's figure if set, else the agent's recommendation. */
   approvedAmountCents?: number;
   humanDecision?: HumanDecision;
@@ -150,7 +154,7 @@ export type PayoutStatus =
 
 export interface PayoutDoc {
   caseId: string;
-  /** = caseId: one payout per case, idempotent (AGENTS.md §1.3). */
+  /** `${caseId}-${token prefix}`: unique per case instance, so reseeds never collide on PayPal's idempotency window. One payout per case is enforced by this document's existence (AGENTS.md §1.3). */
   senderBatchId: string;
   payoutBatchId?: string;
   payoutItemId?: string;
@@ -158,8 +162,13 @@ export interface PayoutDoc {
   amountCents: number;
   currency: string;
   recipientEmail: string;
+  /** Item-level transaction status (SUCCESS, UNCLAIMED, FAILED, …) or `creating` / `create_failed` before PayPal answered. */
   status: PayoutStatus;
-  outcome: "pending" | "paid" | "failed";
+  /** Batch-level status from PAYOUTSBATCH events / the create response (PENDING, PROCESSING, SUCCESS, DENIED). */
+  batchStatus?: string;
+  /** Whether this payout was made without a human (P-10 bookkeeping lives in auto_approvals). */
+  autoApproved?: boolean;
+  outcome: "pending" | "paid" | "failed" | "create_failed" | "reversed";
   error?: string;
   events: Array<{ type: string; status?: string; source: "api" | "webhook" | "poll"; at: Timestamp }>;
   createdAt: Timestamp;

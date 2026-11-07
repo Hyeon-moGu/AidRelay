@@ -35,9 +35,9 @@ export const TRANSITIONS: Record<ActorKind, Table> = {
     needs_info: ["new"], // applicant answered → re-evaluate
     needs_review: NONE,
     parked: ["approved"],
-    approved: ["paying", "parked", "paid"],
+    approved: ["paying", "parked", "paid", "needs_review"], // paid / needs_review: a batch PayPal accepted after a timeout settled or failed
     paying: ["paid", "needs_review", "approved"], // webhook success / failure / PayPal refused the batch
-    paid: NONE,
+    paid: ["needs_review"], // money came back (REFUNDED / REVERSED / RETURNED after SUCCESS)
     rejected: NONE,
   },
   human: {

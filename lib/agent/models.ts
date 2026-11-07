@@ -7,10 +7,10 @@ export const MODELS = {
   prescreen: "claude-haiku-5-5",
 } as const;
 
-let provider: ReturnType<typeof createAnthropic> | undefined;
-
 /** Pinned so a stray ANTHROPIC_BASE_URL in the shell (Claude Code sets one without /v1) cannot redirect the provider. */
 export const ANTHROPIC_BASE_URL = "https://api.anthropic.com/v1";
+
+let provider: ReturnType<typeof createAnthropic> | undefined;
 
 function anthropic() {
   provider ??= createAnthropic({ apiKey: getEnv().ANTHROPIC_API_KEY, baseURL: ANTHROPIC_BASE_URL });
@@ -28,11 +28,18 @@ export function prescreenModel() {
 export interface Usage {
   inputTokens: number;
   outputTokens: number;
+  /** Prompt-cache hits (the policy text). Visible in the activity feed so cache misses are noticed. */
+  cachedInputTokens: number;
   modelCalls: number;
 }
 
-export function addUsage(total: Usage, u: { inputTokens?: number; outputTokens?: number } | undefined): void {
+export function newUsage(): Usage {
+  return { inputTokens: 0, outputTokens: 0, cachedInputTokens: 0, modelCalls: 0 };
+}
+
+export function addUsage(total: Usage, u: { inputTokens?: number; outputTokens?: number; cachedInputTokens?: number } | undefined): void {
   total.inputTokens += u?.inputTokens ?? 0;
   total.outputTokens += u?.outputTokens ?? 0;
+  total.cachedInputTokens += u?.cachedInputTokens ?? 0;
   total.modelCalls += 1;
 }

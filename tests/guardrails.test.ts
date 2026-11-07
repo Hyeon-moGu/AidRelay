@@ -35,6 +35,7 @@ const base: PayableInput = {
   caseReservedCents: 0,
   existingPayout: false,
   usableEvidenceCount: 2,
+  secondEvaluationAgrees: true,
   limits,
 };
 
@@ -50,9 +51,10 @@ function codeOf(fn: () => unknown): string | undefined {
 }
 
 describe("limitsFromEnv mirrors the policy", () => {
-  it("carries the P-7 ceiling, the evidence minimum and the P-10 limits", () => {
-    expect(limits).toMatchObject({ limitCents: 25_000, minConfidence: 0.85, minTier: 1, minUsableEvidence: 1, humanMaxCents: 130_000 });
+  it("carries the P-7 ceiling, the evidence minimum, the P-9.9 switch and the P-10 limits", () => {
+    expect(limits).toMatchObject({ limitCents: 25_000, minConfidence: 0.85, minTier: 1, minUsableEvidence: 1, humanMaxCents: 130_000, requireSecondEvaluation: true });
     expect(limits.velocity).toEqual({ maxAutoPayoutsPerHour: 20, maxAutoPaidCentsPer24h: 500_000 });
+    expect(limitsFromEnv({ AUTO_APPROVE_LIMIT: 250, AUTO_APPROVE_MIN_CONFIDENCE: 0.85, AUTO_APPROVE_DOUBLE_CHECK: false }).requireSecondEvaluation).toBe(false);
   });
 });
 
@@ -149,6 +151,12 @@ describe("assertPayable", () => {
   it("P-9.8 unknown evidence counts as none on the auto path", () => {
     expect(codeOf(() => assertPayable({ ...base, usableEvidenceCount: undefined }))).toBe("no_evidence");
     expect(codeOf(() => assertPayable({ ...base, usableEvidenceCount: 0 }))).toBe("no_evidence");
+  });
+  it("P-9.9 second evaluation must agree on the auto path, unless the switch is off", () => {
+    expect(codeOf(() => assertPayable({ ...base, secondEvaluationAgrees: undefined }))).toBe("no_second_evaluation");
+    expect(codeOf(() => assertPayable({ ...base, secondEvaluationAgrees: false }))).toBe("no_second_evaluation");
+    expect(assertPayable({ ...base, secondEvaluationAgrees: undefined, limits: { ...limits, requireSecondEvaluation: false } })).toEqual({ path: "auto" });
+    expect(assertPayable({ ...base, secondEvaluationAgrees: false, humanApproved: true })).toEqual({ path: "human" });
   });
   it("P-10 velocity applies to the auto path only", () => {
     const now = 1_000_000_000_000;

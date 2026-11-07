@@ -1,4 +1,6 @@
-// PayPal Payouts v1 — cash out. Server-only. One payout per case: sender_batch_id = sender_item_id = caseId (AGENTS.md §1.3).
+// PayPal Payouts v1 — cash out. Server-only.
+// sender_batch_id is unique per case INSTANCE (`${caseId}-${token prefix}`), so a reseeded case id never
+// collides with PayPal's 30-day idempotency window; sender_item_id stays the case id for event routing.
 import { z } from "zod";
 import { centsToValue, valueToCents } from "@/lib/money";
 import { paypalFetch } from "@/lib/paypal/client";
@@ -6,6 +8,8 @@ import type { WebhookEvent } from "@/lib/paypal/events";
 
 export interface PayoutRequestInput {
   caseId: string;
+  /** Unique per case instance; also used as the PayPal-Request-Id. */
+  senderBatchId: string;
   recipientEmail: string;
   amountCents: number;
   currency: string;
@@ -17,7 +21,7 @@ export interface PayoutRequestInput {
 export function buildPayoutRequest(input: PayoutRequestInput) {
   return {
     sender_batch_header: {
-      sender_batch_id: input.caseId,
+      sender_batch_id: input.senderBatchId,
       email_subject: "You have received a relief grant",
       email_message: input.note,
     },
@@ -64,7 +68,7 @@ export interface PayoutBatch {
 export async function createPayout(input: PayoutRequestInput): Promise<PayoutBatch> {
   return paypalFetch<PayoutBatch>("/v1/payments/payouts", {
     method: "POST",
-    requestId: `payout-${input.caseId}`,
+    requestId: `payout-${input.senderBatchId}`,
     body: buildPayoutRequest(input),
   });
 }
@@ -105,7 +109,9 @@ export function outcomeForBatchStatus(status: string): PayoutOutcome {
 
 export interface PayoutEventInfo {
   kind: "item" | "batch";
-  caseId: string;
+  /** From sender_item_id (item events). Batch events carry only senderBatchId; the repo resolves the case. */
+  caseId?: string;
+  senderBatchId?: string;
   payoutBatchId?: string;
   status: string;
   outcome: PayoutOutcome;
@@ -144,7 +150,7 @@ const BatchResource = z
   })
   .loose();
 
-/** Pure: maps PAYMENT.PAYOUTS-ITEM.* / PAYMENT.PAYOUTSBATCH.* events to the case they concern. */
+/** Pure: maps PAYMENT.PAYOUTS-ITEM.* / PAYMENT.PAYOUTSBATCH.* events to the case / batch they concern. */
 export function parsePayoutEvent(event: WebhookEvent): PayoutEventInfo | undefined {
   if (event.event_type.startsWith("PAYMENT.PAYOUTS-ITEM.")) {
     const r = ItemResource.safeParse(event.resource);
@@ -169,7 +175,7 @@ export function parsePayoutEvent(event: WebhookEvent): PayoutEventInfo | undefin
     const h = r.data.batch_header;
     return {
       kind: "batch",
-      caseId: h.sender_batch_header.sender_batch_id,
+      senderBatchId: h.sender_batch_header.sender_batch_id,
       payoutBatchId: h.payout_batch_id,
       status: h.batch_status,
       outcome: outcomeForBatchStatus(h.batch_status),
@@ -179,12 +185,11 @@ export function parsePayoutEvent(event: WebhookEvent): PayoutEventInfo | undefin
 }
 
 /** Pure: the same mapping for items returned by GET /v1/payments/payouts/{id}. */
-export function infoFromBatchItem(batch: PayoutBatch, item: PayoutItemDetail): PayoutEventInfo | undefined {
-  const caseId = item.payout_item.sender_item_id ?? batch.batch_header.sender_batch_header.sender_batch_id;
-  if (!caseId) return undefined;
+export function infoFromBatchItem(batch: PayoutBatch, item: PayoutItemDetail): PayoutEventInfo {
   return {
     kind: "item",
-    caseId,
+    caseId: item.payout_item.sender_item_id,
+    senderBatchId: batch.batch_header.sender_batch_header.sender_batch_id,
     payoutBatchId: batch.batch_header.payout_batch_id,
     status: item.transaction_status,
     outcome: outcomeForItemStatus(item.transaction_status),
