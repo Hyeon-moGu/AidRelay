@@ -58,11 +58,20 @@ export interface TransitionContext {
   humanApproved?: boolean;
 }
 
+/**
+ * What the agent may do with a human-approved case: pay it, park it while money is short, and, once money
+ * arrives, return a parked case to the approval its human gave so it can be paid. Anything else would
+ * override the human.
+ */
+function agentKeepsHumanDecision(from: CaseStatus, to: CaseStatus): boolean {
+  return to === "paying" || to === "parked" || (from === "parked" && to === "approved");
+}
+
 export function canTransition(actor: AuditActor, from: CaseStatus, to: CaseStatus, ctx: TransitionContext = {}): boolean {
   const kind = actorKind(actor);
   if (kind === "agent" && to === "rejected") return false;
   if (from === to) return true;
-  if (kind === "agent" && ctx.humanApproved && to !== "paying" && to !== "parked") return false;
+  if (kind === "agent" && ctx.humanApproved && !agentKeepsHumanDecision(from, to)) return false;
   return TRANSITIONS[kind][from].includes(to);
 }
 
@@ -72,7 +81,7 @@ export function assertTransition(actor: AuditActor, from: CaseStatus, to: CaseSt
     throw new GuardrailError("agent_cannot_reject", "the agent may never set rejected", "P-9");
   }
   if (from === to) return;
-  if (kind === "agent" && ctx.humanApproved && to !== "paying" && to !== "parked") {
+  if (kind === "agent" && ctx.humanApproved && !agentKeepsHumanDecision(from, to)) {
     throw new GuardrailError("human_override", `the agent may not move a human-approved case from ${from} to ${to}`, "P-9");
   }
   if (!TRANSITIONS[kind][from].includes(to)) {

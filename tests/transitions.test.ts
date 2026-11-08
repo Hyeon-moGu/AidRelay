@@ -50,6 +50,13 @@ describe("agent transitions", () => {
     expect(codeOf(() => assertTransition("agent", "approved", "needs_review"))).toBeUndefined();
   });
 
+  it("returns a parked human-approved case to its approval when money arrives, and nowhere else", () => {
+    expect(codeOf(() => assertTransition("agent", "parked", "approved", { humanApproved: true }))).toBeUndefined();
+    expect(canTransition("agent", "parked", "approved", { humanApproved: true })).toBe(true);
+    expect(codeOf(() => assertTransition("agent", "parked", "needs_review", { humanApproved: true }))).toBe("human_override");
+    expect(codeOf(() => assertTransition("agent", "approved", "needs_info", { humanApproved: true }))).toBe("human_override");
+  });
+
   it("same-status writes are idempotent no-ops", () => {
     expect(codeOf(() => assertTransition("agent", "needs_info", "needs_info"))).toBeUndefined();
     expect(codeOf(() => assertTransition("agent", "paid", "paid"))).toBeUndefined();

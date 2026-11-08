@@ -454,7 +454,8 @@ export function buildTools(ctx: RunContext): ToolSet {
     }),
 
     plan_allocation: tool({
-      description: "P-8 allocation of the available balance over the cases waiting for money (approved or parked): which to pay now, in order, and which stay parked.",
+      description:
+        "P-8 allocation of the available balance over the cases waiting for money (approved or parked): which to pay now, in order. Approved cases the balance cannot cover are moved to parked here, in code; they are paid on a later donation.",
       inputSchema: z.object({}),
       execute: async (args) =>
         logged(ctx, "plan_allocation", args, "P-8", async () => {
@@ -466,7 +467,24 @@ export function buildTools(ctx: RunContext): ToolSet {
           // Already-reserved amounts are available to their own case: count them back into the balance.
           const reservedByWaiting = waiting.reduce((sum, c) => sum + (c.reservedCents ?? 0), 0);
           const plan = planAllocation(candidates, fundBalanceCents(fund) + reservedByWaiting);
-          return { balanceCents: fundBalanceCents(fund), pay: plan.pay, park: plan.park, remainingCents: plan.remainingCents };
+          // P-8: a case the money cannot cover waits as `parked`, so the queue and the public ledger show it as
+          // waiting for funds (a human-approved case may be parked; it stays approved by its human).
+          const parkedNow: string[] = [];
+          for (const p of plan.park) {
+            if (p.status !== "approved") continue;
+            try {
+              await setCaseStatus(p.id, "parked", {
+                actor: "agent",
+                action: "case.parked",
+                policyClause: "P-8",
+                reason: `insufficient funds: need ${p.amountCents}, available ${plan.remainingCents}`,
+              });
+              parkedNow.push(p.id);
+            } catch (err) {
+              console.warn(`[tools] could not park ${p.id}:`, err instanceof Error ? err.message : err);
+            }
+          }
+          return { balanceCents: fundBalanceCents(fund), pay: plan.pay, park: plan.park, parkedNow, remainingCents: plan.remainingCents };
         }),
     }),
   };
