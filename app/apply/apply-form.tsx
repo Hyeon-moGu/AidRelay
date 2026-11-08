@@ -22,7 +22,7 @@ const EMPTY: Fields = { name: "", email: "", phone: "", address: "", zip: "", ho
 
 const mb = (bytes: number) => `${(bytes / 1024 / 1024).toFixed(1)} MB`;
 
-export function ApplyForm({ initialLang, prefill }: { initialLang: Lang; prefill?: Prefill }) {
+export function ApplyForm({ initialLang, prefill, largeHouseholdFrom }: { initialLang: Lang; prefill?: Prefill; largeHouseholdFrom: number }) {
   const router = useRouter();
   const [lang, setLang] = useState<Lang>(initialLang);
   const [step, setStepRaw] = useState(0);
@@ -67,6 +67,8 @@ export function ApplyForm({ initialLang, prefill }: { initialLang: Lang; prefill
       if (!f.name.trim()) e.name = a.errors.required;
       if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(f.email.trim())) e.email = a.errors.email;
       if (!/^\d{5}(-\d{4})?$/.test(f.zip.trim())) e.zip = a.errors.zip;
+      // P-5: without a household size the case would come back as needs_info, costing the family a round trip.
+      if (!/^\d{1,2}$/.test(f.householdSize.trim()) || Number(f.householdSize) < 1) e.householdSize = a.errors.household;
     }
     if (s === 1 && f.narrative.trim().length < 10) e.narrative = a.errors.required;
     if (s === 2) {
@@ -147,7 +149,7 @@ export function ApplyForm({ initialLang, prefill }: { initialLang: Lang; prefill
               aria-pressed={lang === l}
               lang={l}
               onClick={() => setLang(l)}
-              className={`rounded-md px-2.5 py-1.5 font-medium transition-colors ${lang === l ? "bg-card text-foreground shadow-[0_1px_2px_rgba(20,24,28,0.08)]" : "text-muted-foreground hover:text-foreground"}`}
+              className={`relative rounded-md px-2.5 py-1.5 font-medium transition-colors after:absolute after:inset-x-0 after:-inset-y-1.5 after:content-[''] ${lang === l ? "bg-card text-foreground shadow-[0_1px_2px_rgba(20,24,28,0.08)]" : "text-muted-foreground hover:text-foreground"}`}
             >
               {l === "en" ? "English" : "Español"}
             </button>
@@ -159,7 +161,7 @@ export function ApplyForm({ initialLang, prefill }: { initialLang: Lang; prefill
         <header className="mt-6 space-y-3">
           <p className="text-sm font-medium text-primary tabular-nums">{a.stepOf.replace("{n}", String(step + 1)).replace("{total}", "3")}</p>
           <h1 className="text-[1.75rem] leading-tight font-semibold tracking-[-0.02em]">{a.title}</h1>
-          <p className="leading-relaxed text-muted-foreground">{a.intro}</p>
+          {step === 0 && <p className="leading-relaxed text-muted-foreground">{a.intro}</p>}
           <ol className="grid grid-cols-3 gap-2 pt-2">
             {a.steps.map((s, i) => (
               <li key={s} aria-current={i === step ? "step" : undefined} className="space-y-1.5">
@@ -173,7 +175,7 @@ export function ApplyForm({ initialLang, prefill }: { initialLang: Lang; prefill
         <form noValidate onSubmit={onSubmit} className="mt-6">
           <div className="rounded-2xl border border-border bg-card p-5 sm:p-6">
             <h2 ref={heading} tabIndex={-1} className="text-lg font-semibold tracking-tight outline-none">
-              {a.steps[step]}
+              {a.cardTitles[step]}
             </h2>
 
             <div key={step} className={`mt-5 space-y-5 ${moved ? "animate-relay-in" : ""}`}>
@@ -181,21 +183,21 @@ export function ApplyForm({ initialLang, prefill }: { initialLang: Lang; prefill
                 <>
                   {text("name", a.name, { autoComplete: "name", placeholder: "Maria Lopez" })}
                   {text("email", a.email, { hint: a.emailHint, type: "email", inputMode: "email", autoComplete: "email", placeholder: "name@example.com" })}
-                  {text("phone", a.phone, { optional: true, type: "tel", inputMode: "tel", autoComplete: "tel", placeholder: "(305) 555-0134" })}
-                  {text("address", a.address, { optional: true, autoComplete: "street-address", placeholder: "123 Bay St, Miami" })}
+                  {text("phone", a.phone, { optional: true, type: "tel", inputMode: "tel", autoComplete: "tel", placeholder: "(252) 555-0134" })}
+                  {text("address", a.address, { optional: true, autoComplete: "street-address", placeholder: "412 Mill St" })}
                   <div className="grid gap-5 sm:grid-cols-2 sm:gap-4">
-                    {text("zip", a.zip, { inputMode: "numeric", autoComplete: "postal-code", placeholder: "33101" })}
-                    {text("householdSize", a.householdSize, { optional: true, inputMode: "numeric", placeholder: "4" })}
+                    {text("zip", a.zip, { inputMode: "numeric", autoComplete: "postal-code", placeholder: "28501" })}
+                    {text("householdSize", a.householdSize, { inputMode: "numeric", hint: a.householdHint.replace("{n}", String(largeHouseholdFrom)) })}
                   </div>
                 </>
               )}
 
               {step === 1 && (
                 <>
-                  <Field id="f-narrative" label={a.narrative} hint={a.narrativeHint} error={errors.narrative}>
+                  <Field id="f-narrative" label={a.narrative} hint={a.narrativeHint} hintFirst error={errors.narrative}>
                     {(aria) => <Textarea {...aria} name="narrative" rows={7} value={f.narrative} onChange={set("narrative")} />}
                   </Field>
-                  {text("requestedAmountDollars", a.requestedAmount, { optional: true, inputMode: "decimal", placeholder: "600" })}
+                  {text("requestedAmountDollars", a.requestedAmount, { optional: true, inputMode: "decimal", placeholder: "600", hint: a.requestedAmountHint })}
                 </>
               )}
 
@@ -232,7 +234,7 @@ export function ApplyForm({ initialLang, prefill }: { initialLang: Lang; prefill
                               type="button"
                               aria-label={`${a.remove} ${p.file.name}`}
                               onClick={() => setPhotos(photos.filter((_, j) => j !== i))}
-                              className="absolute top-1.5 right-1.5 flex size-8 items-center justify-center rounded-full bg-background/90 text-foreground shadow-sm transition-transform active:scale-[0.94]"
+                              className="absolute top-1.5 right-1.5 flex size-8 items-center justify-center rounded-full bg-background/90 text-foreground shadow-sm transition-transform after:absolute after:-inset-1.5 after:content-[''] active:scale-[0.94]"
                             >
                               <X aria-hidden="true" className="size-4" />
                             </button>
@@ -257,12 +259,12 @@ export function ApplyForm({ initialLang, prefill }: { initialLang: Lang; prefill
                         <FileText aria-hidden="true" className="size-4 shrink-0 text-muted-foreground" />
                         <span className="min-w-0 flex-1 truncate">{doc.name}</span>
                         <span className="text-xs text-muted-foreground tabular-nums">{mb(doc.size)}</span>
-                        <button type="button" aria-label={`${a.remove} ${doc.name}`} onClick={() => setDoc(null)} className="flex size-8 items-center justify-center rounded-md hover:bg-muted">
+                        <button type="button" aria-label={`${a.remove} ${doc.name}`} onClick={() => setDoc(null)} className="-my-1.5 -mr-2 flex size-11 items-center justify-center rounded-md hover:bg-muted">
                           <X aria-hidden="true" className="size-4" />
                         </button>
                       </div>
                     ) : (
-                      <label className="inline-flex h-10 cursor-pointer items-center gap-2 rounded-lg border border-input/60 bg-card px-3 text-sm font-medium transition-colors hover:bg-muted has-[:focus-visible]:outline-2 has-[:focus-visible]:outline-offset-2 has-[:focus-visible]:outline-ring">
+                      <label className="inline-flex h-11 cursor-pointer items-center gap-2 rounded-lg border border-input/60 bg-card px-3 text-sm font-medium transition-colors hover:bg-muted has-[:focus-visible]:outline-2 has-[:focus-visible]:outline-offset-2 has-[:focus-visible]:outline-ring">
                         <FileText aria-hidden="true" className="size-4 text-primary" />
                         {a.addDocument}
                         <input type="file" accept="image/*" onChange={(e) => setDoc(e.target.files?.[0] ?? null)} className="sr-only" />
@@ -285,11 +287,15 @@ export function ApplyForm({ initialLang, prefill }: { initialLang: Lang; prefill
                       ).map(([label, value, noTranslate]) => (
                         <div key={label} className="flex justify-between gap-4 py-1.5">
                           <dt className="shrink-0 text-muted-foreground">{label}</dt>
-                          <dd className="min-w-0 truncate text-right tabular-nums" translate={noTranslate ? "no" : undefined}>
+                          <dd className={`min-w-0 text-right tabular-nums ${noTranslate ? "break-all" : "break-words"}`} translate={noTranslate ? "no" : undefined}>
                             {value}
                           </dd>
                         </div>
                       ))}
+                      <div className="space-y-0.5 py-1.5">
+                        <dt className="text-muted-foreground">{a.steps[1]}</dt>
+                        <dd className="line-clamp-2 leading-relaxed">{f.narrative}</dd>
+                      </div>
                     </dl>
                   </div>
                   <p className="text-[13px] leading-relaxed text-muted-foreground">{a.consent}</p>

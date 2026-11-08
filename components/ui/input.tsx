@@ -25,6 +25,7 @@ export function Field({
   label,
   optional,
   hint,
+  hintFirst,
   error,
   children,
 }: {
@@ -32,6 +33,8 @@ export function Field({
   label: React.ReactNode;
   optional?: string;
   hint?: React.ReactNode;
+  /** Show the hint between the label and the control, for prompts the person should read before typing. */
+  hintFirst?: boolean;
   error?: string;
   children: (aria: FieldAria) => React.ReactNode;
 }) {
@@ -42,8 +45,13 @@ export function Field({
         {label}
         {optional && <span className="text-xs font-normal text-muted-foreground">{optional}</span>}
       </label>
+      {hint && hintFirst && (
+        <p id={`${id}-hint`} className="text-[13px] leading-snug text-muted-foreground">
+          {hint}
+        </p>
+      )}
       {children({ id, "aria-describedby": describedBy, "aria-invalid": error ? true : undefined })}
-      {hint && (
+      {hint && !hintFirst && (
         <p id={`${id}-hint`} className="text-[13px] leading-snug text-muted-foreground">
           {hint}
         </p>

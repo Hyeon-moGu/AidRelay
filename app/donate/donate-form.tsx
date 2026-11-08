@@ -6,7 +6,7 @@ import { ArrowRight, CircleCheck, LoaderCircle } from "lucide-react";
 import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
 import { fieldClass } from "@/components/ui/input";
-import { money } from "@/lib/format";
+import { money, moneyWhole } from "@/lib/format";
 
 type PayPalButtonsFactory = (options: {
   style?: { layout?: "vertical" | "horizontal"; shape?: "rect" | "pill"; label?: string; height?: number };
@@ -23,7 +23,7 @@ declare global {
 }
 
 const SCRIPT_ID = "paypal-js-sdk";
-const PRESETS_CENTS = [2000, 5000, 10000];
+const PRESETS_CENTS = [2000, 5000, 10000, 25000];
 const MIN_CENTS = 100;
 const MAX_CENTS = 1_000_000;
 
@@ -73,7 +73,30 @@ function loadSdk(clientId: string): Promise<void> {
   });
 }
 
-export function DonateForm({ clientId }: { clientId: string }) {
+/** The policy's grant per level of need (policy.md §3), passed in from the server. */
+export type TierCents = Record<1 | 2 | 3 | 4, number>;
+
+const FRACTIONS: Array<[number, string]> = [
+  [0.75, "Three quarters"],
+  [0.5, "Half"],
+  [0.25, "A quarter"],
+  [0.2, "A fifth"],
+];
+
+/** What the amount means for a family, in the policy's own grants. */
+function impact(cents: number, tier: TierCents): string {
+  if (cents < tier[1]) {
+    const part = FRACTIONS.find(([r]) => Math.abs(cents / tier[1] - r) < 0.001)?.[1] ?? "Part";
+    return `${part} of the ${moneyWhole(tier[1])} grant a family gets for spoiled food and small losses`;
+  }
+  if (cents < tier[2]) return `A full ${moneyWhole(tier[1])} grant for spoiled food and small losses`;
+  if (cents < tier[3]) return "A full grant for a family whose home was damaged";
+  if (cents < tier[4]) return "A full grant for a family forced out of its home";
+  if (cents < tier[4] * 2) return "A full grant for a displaced family with children or a medical need";
+  return `Full grants for ${Math.floor(cents / tier[2])} families whose homes were damaged`;
+}
+
+export function DonateForm({ clientId, tierCents }: { clientId: string; tierCents: TierCents }) {
   const [amountCents, setAmountCents] = useState(PRESETS_CENTS[0]);
   const [customDollars, setCustomDollars] = useState("");
   const [customError, setCustomError] = useState(false);
@@ -162,27 +185,21 @@ export function DonateForm({ clientId }: { clientId: string }) {
           </span>
           <div>
             <h2 id="thanks" className="text-xl font-semibold tracking-tight">
-              Thank you. {money(phase.amountCents)} received.
+              Thank you. Your {moneyWhole(phase.amountCents)} is in the fund.
             </h2>
-            <p className="mt-1 text-sm text-muted-foreground">The Case Officer is already checking who it can pay.</p>
+            <p className="mt-1 text-sm text-muted-foreground">The AI case officer is already checking whether an approved family is waiting for it.</p>
           </div>
         </div>
         <dl className="grid grid-cols-[auto_minmax(0,1fr)] gap-x-4 gap-y-2 border-t border-border pt-5 text-sm">
-          <dt className="text-muted-foreground">PayPal capture</dt>
+          <dt className="text-muted-foreground">PayPal receipt</dt>
           <dd className="truncate font-mono" translate="no">
             {phase.captureId}
           </dd>
-          <dt className="text-muted-foreground">Order</dt>
-          <dd className="truncate font-mono" translate="no">
-            {phase.orderId}
-          </dd>
-          <dt className="text-muted-foreground">Status</dt>
-          <dd>{phase.status.toLowerCase()}</dd>
-          <dt className="text-muted-foreground">Fund raised so far</dt>
-          <dd className="font-medium tabular-nums">{money(phase.raisedCents)}</dd>
+          <dt className="text-muted-foreground">Raised so far</dt>
+          <dd className="font-medium tabular-nums">{moneyWhole(phase.raisedCents)}</dd>
         </dl>
         <Link href="/ledger" className="inline-flex items-center gap-1.5 text-sm font-medium text-primary hover:underline">
-          See it on the public ledger
+          Follow it on the public ledger
           <ArrowRight aria-hidden="true" className="size-4" />
         </Link>
       </section>
@@ -192,9 +209,9 @@ export function DonateForm({ clientId }: { clientId: string }) {
   return (
     <section aria-labelledby="give" className="h-fit space-y-6 rounded-2xl border border-border bg-card p-6">
       <h2 id="give" className="text-lg font-semibold tracking-tight">
-        Choose an amount
+        How much would you like to give?
       </h2>
-      <div role="group" aria-label="Preset amounts" className="grid grid-cols-3 gap-2">
+      <div role="group" aria-label="Preset amounts" className="grid grid-cols-4 gap-2">
         {PRESETS_CENTS.map((cents) => {
           const selected = amountCents === cents && !customDollars;
           return (
@@ -243,14 +260,18 @@ export function DonateForm({ clientId }: { clientId: string }) {
           </p>
         )}
       </div>
-      <div className="flex items-baseline justify-between border-t border-border pt-5">
-        <span className="text-sm text-muted-foreground">You are donating</span>
-        <span aria-live="polite" className="text-3xl font-semibold tracking-[-0.02em] tabular-nums">
-          {money(amountCents)}
-        </span>
+      <div className="border-t border-border pt-5">
+        <div className="flex items-baseline justify-between">
+          <span className="text-sm text-muted-foreground">Your gift</span>
+          <span aria-live="polite" className="text-3xl font-semibold tracking-[-0.02em] tabular-nums">
+            {money(amountCents)}
+          </span>
+        </div>
+        <p className="mt-1.5 text-right text-[13px] text-muted-foreground">{impact(amountCents, tierCents)}</p>
       </div>
 
-      <div ref={containerRef} className="min-h-[104px]" />
+      {/* PayPal's iframe paints white; in dark mode that white becomes a deliberate tray instead of a hole. */}
+      <div ref={containerRef} className="min-h-[104px] dark:rounded-xl dark:bg-white dark:p-3" />
 
       {phase.kind === "loading" && (
         <p className="flex items-center gap-2 text-sm text-muted-foreground">
@@ -261,12 +282,12 @@ export function DonateForm({ clientId }: { clientId: string }) {
       {phase.kind === "capturing" && (
         <p role="status" className="flex items-center gap-2 text-sm text-muted-foreground">
           <LoaderCircle aria-hidden="true" className="size-4 animate-spin" />
-          Capturing the payment…
+          Confirming your payment with PayPal…
         </p>
       )}
       {phase.kind === "error" && (
         <p role="alert" className="rounded-lg bg-danger-soft p-3 text-sm text-danger">
-          {phase.message} Try again, or pick another amount.
+          {phase.message} Please try again or choose a different amount.
         </p>
       )}
     </section>

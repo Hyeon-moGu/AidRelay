@@ -68,7 +68,7 @@ export function ReplyForm({ token, lang }: { token: string; lang: Lang }) {
             {files.map((f, i) => (
               <li key={`${f.name}-${i}`} className="flex items-center gap-2 rounded-lg bg-muted/60 px-3 py-1.5 text-sm">
                 <span className="min-w-0 flex-1 truncate">{f.name}</span>
-                <button type="button" aria-label={`${m.apply.remove} ${f.name}`} onClick={() => setFiles(files.filter((_, j) => j !== i))} className="flex size-8 items-center justify-center rounded-md hover:bg-muted">
+                <button type="button" aria-label={`${m.apply.remove} ${f.name}`} onClick={() => setFiles(files.filter((_, j) => j !== i))} className="-my-1.5 -mr-2 flex size-11 items-center justify-center rounded-md hover:bg-muted">
                   <X aria-hidden="true" className="size-4" />
                 </button>
               </li>
@@ -76,7 +76,7 @@ export function ReplyForm({ token, lang }: { token: string; lang: Lang }) {
           </ul>
         )}
         {files.length < MAX_FILES && (
-          <label className="inline-flex h-10 cursor-pointer items-center gap-2 rounded-lg border border-input/60 bg-card px-3 text-sm font-medium transition-colors hover:bg-muted has-[:focus-visible]:outline-2 has-[:focus-visible]:outline-offset-2 has-[:focus-visible]:outline-ring">
+          <label className="inline-flex h-11 cursor-pointer items-center gap-2 rounded-lg border border-input/60 bg-card px-3 text-sm font-medium transition-colors hover:bg-muted has-[:focus-visible]:outline-2 has-[:focus-visible]:outline-offset-2 has-[:focus-visible]:outline-ring">
             <Camera aria-hidden="true" className="size-4 text-primary" />
             {m.apply.addPhotos}
             <input
