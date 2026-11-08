@@ -17,6 +17,7 @@ const eslintConfig = [
       ".next/**",
       "out/**",
       "build/**",
+      "temp/**", // local scratch scripts, git-ignored
       "next-env.d.ts",
     ],
   },

@@ -194,7 +194,7 @@ describe("placeholder images", () => {
     }
     const again = await imageHash(await placeholderImage(paths[0]));
     expect(hammingDistance(again, hashes[0])).toBe(0);
-  });
+  }, 30_000); // renders 28 images with sharp; slow when the suite runs in parallel
 
   it("nearDuplicateImages ignores two photos of the same case and reports look-alikes across cases", () => {
     const h = "0f0f0f0f0f0f0f0f";
