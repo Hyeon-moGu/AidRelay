@@ -77,6 +77,13 @@ export function toPrompt(request: Pick<AgLlmRequest, "input" | "instructions" | 
   if (choice && typeof choice === "object") system.push(`On this turn, call the ${choice.name} tool.`);
   else if (choice === "required") system.push("On this turn, call at least one tool.");
 
+  // Studio retries a delegated agent that answered in prose by re-sending its history, which then ends on
+  // the assistant. The Messages API reads a final assistant turn as a prefill and rejects it, so the turn
+  // gets a short user line instead.
+  if (messages[messages.length - 1]?.role === "assistant") {
+    messages.push({ role: "user", content: choice && typeof choice === "object" ? `Call ${choice.name} now with a short summary of what you did.` : "Continue." });
+  }
+
   return { system: system.join("\n\n"), messages };
 }
 
@@ -109,15 +116,29 @@ function objectSchema(schema: AgJSONSchema | undefined): Parameters<typeof jsonS
 }
 
 /**
- * Forced tool choice is not accepted by every current Claude model, so 'required' and a named tool become
- * 'auto' plus a line in the system prompt (added by toPrompt).
+ * Studio's tool choice for the AI SDK. The auditor's model (Claude Haiku 5.5) accepts forced tool use;
+ * toPrompt also states the choice in the system prompt, as a backup for a model that would not.
  */
 export function toToolChoice(request: Pick<AgLlmRequest, "toolChoice">, tools: ToolSet | undefined): ToolChoice<ToolSet> | undefined {
   if (!tools) return undefined;
-  return request.toolChoice === "none" ? "none" : "auto";
+  const choice = request.toolChoice;
+  if (choice && typeof choice === "object") return choice.name in tools ? { type: "tool", toolName: choice.name } : "auto";
+  if (choice === "required" || choice === "none") return choice;
+  return "auto";
 }
 
-type JsonSchemaLike = { type?: string | string[]; properties?: Record<string, JsonSchemaLike> };
+type JsonSchemaLike = { type?: string | string[]; properties?: Record<string, JsonSchemaLike>; anyOf?: JsonSchemaLike[]; oneOf?: JsonSchemaLike[]; $ref?: string };
+
+/** True unless the schema clearly allows only non-string values (a $ref we cannot see counts as "may be a string"). */
+function mayBeString(schema: JsonSchemaLike | undefined): boolean {
+  if (!schema) return true;
+  if (schema.$ref) return true;
+  const branches = schema.anyOf ?? schema.oneOf;
+  if (branches) return branches.some(mayBeString);
+  const type = schema.type;
+  if (type === undefined) return true;
+  return type === "string" || (Array.isArray(type) && type.includes("string"));
+}
 
 /** JSON.parse, forgiving the one or two extra closing brackets a model sometimes adds at the end. */
 function parseLoose(value: string): unknown {
@@ -144,8 +165,7 @@ export function repairArguments(input: unknown, parameters: AgJSONSchema | undef
   const props = (parameters as JsonSchemaLike | undefined)?.properties ?? {};
   const out: Record<string, unknown> = { ...(input as Record<string, unknown>) };
   for (const [key, original] of Object.entries(out)) {
-    const declared = props[key]?.type;
-    if (declared === "string" || (Array.isArray(declared) && declared.includes("string"))) continue;
+    if (mayBeString(props[key])) continue;
     let value = original;
     if (typeof value === "string" && /^\s*[[{]/.test(value)) {
       try {
@@ -187,15 +207,17 @@ export class TurnCollector {
   /** Studio events for one stream part (often none). */
   accept(part: TextStreamPart<ToolSet>): AgAiEvent[] {
     switch (part.type) {
+      // The provider numbers text blocks per turn ("0", "1"), and Studio keeps one chat entry per message
+      // id, so ids are scoped to this turn or a later answer would overwrite an earlier one.
       case "text-start":
         this.text.set(part.id, "");
         this.textOrder.push(part.id);
-        return [{ type: "TEXT_MESSAGE_START", messageId: part.id, role: "assistant" }];
+        return [{ type: "TEXT_MESSAGE_START", messageId: this.messageId(part.id), role: "assistant" }];
       case "text-delta":
         this.text.set(part.id, (this.text.get(part.id) ?? "") + part.text);
-        return part.text ? [{ type: "TEXT_MESSAGE_CONTENT", messageId: part.id, delta: part.text }] : [];
+        return part.text ? [{ type: "TEXT_MESSAGE_CONTENT", messageId: this.messageId(part.id), delta: part.text }] : [];
       case "text-end":
-        return [{ type: "TEXT_MESSAGE_END", messageId: part.id }];
+        return [{ type: "TEXT_MESSAGE_END", messageId: this.messageId(part.id) }];
       // Tool arguments are sent whole once the call is complete (not as they stream), so they can be repaired first.
       case "tool-call": {
         const args = JSON.stringify(repairArguments(part.input ?? {}, this.parameters.get(part.toolName)));
@@ -223,13 +245,20 @@ export class TurnCollector {
     }
   }
 
+  private messageId(partId: string): string {
+    return `${this.responseId}:${partId}`;
+  }
+
   fail(message: string): void {
     this.error = message;
   }
 
   response(): AgLlmResponse {
     const output: AgAiOutputItem[] = [];
-    const text = this.textOrder.map((id) => this.text.get(id) ?? "").join("");
+    const text = this.textOrder
+      .map((id) => this.text.get(id)?.trim() ?? "")
+      .filter(Boolean)
+      .join("\n\n");
     if (text) {
       output.push({ id: `msg_${this.responseId}`, kind: "output", type: "message", role: "assistant", status: "completed", content: [{ type: "text", text, annotations: [] }] });
     }

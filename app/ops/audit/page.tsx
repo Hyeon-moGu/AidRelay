@@ -42,8 +42,8 @@ export default async function AuditPage() {
         </Link>
       </header>
       <p className="shrink-0 border-b border-border bg-accent/50 px-4 py-2 text-[13px] text-accent-foreground sm:px-6">
-        Ask about the fund in plain English. The auditor runs on Claude through AG Studio&apos;s Agent Framework, reads only the anonymized ledger
-        and can hand chart work to Studio&apos;s own agents. It cannot approve, pay or change anything.
+        Ask about the fund in plain English. The auditor reads only the anonymized ledger and cannot approve, pay or change anything; charts it
+        adds stay in this tab and are never published.
       </p>
       <main id="main" className="min-h-0 flex-1">
         <AuditClient ledger={{ rows: ledger.rows, donations: ledger.donations, fund: ledger.fund }} licenseKey={getEnv().AG_STUDIO_LICENSE_KEY ?? ""} policyFacts={policyFacts()} />

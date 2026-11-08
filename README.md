@@ -115,7 +115,19 @@ Also: Next.js 15 (App Router), Firestore, Google Cloud Storage, Cloud Run, AG Gr
 
 - **A custom agent talking to Studio's built-in agents.** Our *Ledger auditor* (`app/ops/audit/audit-studio.tsx`, a `directLlmRunner` with `view_schema`, `execute_query`, `view_report`, `view_widget` and `delegate_to`) is the primary agent. For charts it delegates to Studio's own *page* agent (adds the widget) and *widget* agent (maps the fields), then reads the widget back to confirm it shows data.
 - **A swapped-in model.** Studio ships no provider; every turn of every agent goes through our `AgLlmAdapter` (`app/ops/audit/claude-adapter.ts`) to `/api/ops/ask`, which runs Claude Haiku 5.5 through the Vercel AI SDK and streams Studio's AG-UI events back (`lib/ops/llm-bridge.ts`). The bridge also repairs the small argument mistakes a fast model makes (an object sent as a JSON string, a stray bracket) so a call is not wasted on a validation error.
-- **Safe by construction.** The model only proposes tool calls; Studio runs them in the browser on the same anonymized tables as `/ledger`, so no name, address or contact detail can reach the model. The auditor cannot approve, pay or change anything, the Anthropic key never leaves the server, and the route refuses anyone who is not signed in as an operator.
+- **Safe by construction.** The model only proposes tool calls; Studio runs them in the browser on the same anonymized tables as `/ledger`, so no name, address or contact detail can reach the model. The auditor cannot approve, pay or change anything, charts it adds stay in that browser tab, the Anthropic key never leaves the server, and the route refuses anyone who is not signed in as an operator, caps request size and limits how many model turns it will run.
+
+```
+ AI panel (AG Studio, edit mode)
+   └─ Ledger auditor (our agent: view_schema, execute_query, view_report, view_widget, delegate_to, rename_thread)
+        ├─ delegate_to → page agent   (Studio built-in: adds and positions the widget)
+        ├─ delegate_to → widget agent (Studio built-in: maps fields, sets the title)
+        └─ delegate_to → data agent   (Studio built-in: data questions)
+   every agent's turns → claudeAdapter (AgLlmAdapter) → POST /api/ops/ask → AI SDK streamText → Claude Haiku 5.5
+   tool calls ← run by Studio in the browser on the anonymized grants, donations and fund tables
+```
+
+Studio APIs used: `createAiHarness` with a builder, `directLlmRunner` for our agent and for the built-in `data`, `page` and `widget` agents, `AgLlmAdapter`, `ctx.studio.*` tools, `tools.delegateTo`, `tools.renameThread`, prompt starters, a telemetry observer (each question shows its turns, agents, tokens and cost above the report) and `AgStudioAiModule`. The grants table carries a code-computed *Policy amount* (grant level plus the household rule), so "check every grant against the rules" compares numbers instead of reading summaries. Thinking is off on this route because Studio's conversation history has no place for signed thinking blocks; the system prompt and the tool catalogue are prompt-cached, which keeps a 15-turn chart request at about one cent.
 
 ## Run it locally
 

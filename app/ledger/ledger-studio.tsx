@@ -70,8 +70,10 @@ export function ledgerDataSources(ledger: LedgerStudioData): AgDataSourcesDefini
       decidedBy: r.humanReviewed ? APPROVED_BY.human : APPROVED_BY.agent,
       zipPrefix: `${r.zipPrefix}xx`,
       payoutBatchId: r.payoutBatchId ?? "pending",
-      // Text, so it reads "1 h 59 min" like the rest of the site.
+      // Text, so it reads "1 h 59 min" like the rest of the site; the number is kept for charts and the auditor.
       timeToCash: r.minutesToCash == null ? "" : duration(r.minutesToCash),
+      minutesToCash: r.minutesToCash,
+      policyAmount: r.policyAmountCents == null ? null : r.policyAmountCents / 100,
       // The grid sizes columns to their content and then scales them to the widget, so a 140-character
       // summary would squeeze every short column; the full text stays in /api/ledger.
       summary: clip(r.summary),
@@ -106,6 +108,8 @@ export function ledgerDataSources(ledger: LedgerStudioData): AgDataSourcesDefini
           { id: "zipPrefix", name: "Zip", format: "textFormat", cardinality: "low" },
           { id: "payoutBatchId", name: "PayPal payout id", format: "textFormat" },
           { id: "timeToCash", name: "Time to cash", description: "From applying to money in the family's PayPal account.", format: "textFormat" },
+          { id: "minutesToCash", name: "Minutes to cash", description: "Minutes from applying to money in the family's PayPal account; empty until paid.", format: "integerFormat" },
+          money("policyAmount", "Policy amount", "What the fund's grant level and household rule give this family. A volunteer may approve a different amount."),
           { id: "summary", name: "What happened", description: "The AI case officer's one-line public summary.", format: "textFormat" },
           { id: "receivedAt", name: "Applied", format: "dateTimeFormat", formatOptions: { format: when } },
           { id: "paidAt", name: "Paid at", format: "dateTimeFormat", formatOptions: { format: when } },
@@ -242,19 +246,19 @@ export function ledgerReport(): AgReportState {
 }
 
 /** Phone layout: everything full width, in the authored order (studio-layout.ts). */
-const PHONE: AgResponsiveLayoutBreakpoint = {
+export const PHONE: AgResponsiveLayoutBreakpoint = {
   maxWidth: PHONE_MAX_WIDTH,
   layout: (candidates, { columns }): AgWidgetLayoutState[] => phoneLayout(candidates.map((c) => c.layout), columns, PHONE_Y_SPANS),
 };
 
 /** Tablet layout: the two charts side by side, the money trail full width under them. */
-const TABLET: AgResponsiveLayoutBreakpoint = {
+export const TABLET: AgResponsiveLayoutBreakpoint = {
   maxWidth: TABLET_MAX_WIDTH,
   layout: (): AgWidgetLayoutState[] => TABLET_LAYOUT,
 };
 
 // Studio's words for its own overlays and tooltips, in the page's voice.
-const LOCALE: AgStudioLocaleText = {
+export const LOCALE: AgStudioLocaleText = {
   widgetOverlayNoData: "No grants match this selection. Select it again to show every grant.",
   aggregationSumFieldName: "${name}",
   aggregationCountFieldName: "${name}",

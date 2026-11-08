@@ -35,7 +35,9 @@ export function claudeAdapter(endpoint: string): AgLlmAdapter {
             body: JSON.stringify(request),
             signal: options?.signal,
           });
-          if (res.status === 401) return finish(failed("Your operator session has ended. Sign in again at /ops/login."));
+          if (res.status === 401) return finish(failed("Your operator session has ended. Sign in again at /ops/login, then come back to Ask the ledger."));
+          if (res.status === 429) return finish(failed("The auditor has answered a lot of questions in the last few minutes. Please try again shortly."));
+          if (res.status === 413) return finish(failed("This conversation has grown too long. Start a new chat."));
           if (!res.ok || !res.body) return finish(failed(`The model endpoint answered ${res.status}.`));
           const reader = res.body.pipeThrough(new TextDecoderStream()).getReader();
           let buffer = "";
@@ -50,7 +52,12 @@ export function claudeAdapter(endpoint: string): AgLlmAdapter {
               if (!line) continue;
               const message = JSON.parse(line) as { event?: AgAiEvent; complete?: AgLlmResponse };
               if (message.event) push(message.event);
-              if (message.complete) finish(message.complete);
+              if (message.complete) {
+                finish(message.complete);
+                // The turn is over: release the connection now rather than leaving it to be aborted later.
+                void reader.cancel().catch(() => undefined);
+                return;
+              }
             }
           }
           finish(failed("The model stream ended before the turn finished."));

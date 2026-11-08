@@ -45,7 +45,25 @@ describe("toPrompt", () => {
     const { system } = toPrompt(request);
     expect(system).toContain('JSON object named "plan"');
     expect(system).toContain("call the complete_task tool");
-    expect(toToolChoice(request, toTools([{ name: "complete_task", description: "", parameters: { type: "object" } } as AgAiToolSchema]))).toBe("auto");
+    const tools = toTools([{ name: "complete_task", description: "", parameters: { type: "object" } } as AgAiToolSchema]);
+    expect(toToolChoice(request, tools)).toEqual({ type: "tool", toolName: "complete_task" });
+    expect(toToolChoice({ toolChoice: { name: "missing" } }, tools)).toBe("auto");
+    expect(toToolChoice({ toolChoice: "required" }, tools)).toBe("required");
+    expect(toToolChoice({ toolChoice: "required" }, undefined)).toBeUndefined();
+  });
+
+  it("never ends on an assistant turn, which the Messages API would read as a prefill", () => {
+    const request = {
+      responseFormat: { type: "text" },
+      toolChoice: { name: "complete_task" },
+      input: [
+        { id: "1", kind: "input", type: "message", role: "user", status: "completed", content: text("Map the widget.") },
+        { id: "2", kind: "output", type: "message", role: "assistant", status: "completed", content: [{ type: "text", text: "Done, it is mapped.", annotations: [] }] },
+      ],
+    } as unknown as AgLlmRequest;
+    const { messages } = toPrompt(request);
+    expect(messages.map((m) => m.role)).toEqual(["user", "assistant", "user"]);
+    expect(messages[2].content).toContain("Call complete_task now");
   });
 });
 
@@ -73,14 +91,16 @@ describe("repairArguments", () => {
     expect(repairArguments({ query: { query: { kind: "apiQuery" } } }, schema)).toEqual({ query: { kind: "apiQuery" } });
   });
 
-  it("leaves string properties and non-JSON text alone", () => {
+  it("leaves string properties, possibly-string properties and non-JSON text alone", () => {
     expect(repairArguments({ note: '{"keep":1}', query: "{oops" }, schema)).toEqual({ note: '{"keep":1}', query: "{oops" });
+    const either = { type: "object", properties: { value: { anyOf: [{ type: "object" }, { type: "string" }] }, ref: { $ref: "#/$defs/X" } } } as never;
+    expect(repairArguments({ value: '{"a":1}', ref: '{"b":2}' }, either)).toEqual({ value: '{"a":1}', ref: '{"b":2}' });
   });
 });
 
 describe("TurnCollector", () => {
   it("streams text and whole, repaired tool calls, then reports the turn", () => {
-    const c = new TurnCollector("r1", "claude-haiku-5-5", [{ name: "execute_query", description: "", parameters: { type: "object", properties: { query: {} } } } as AgAiToolSchema]);
+    const c = new TurnCollector("r1", "claude-haiku-5-5", [{ name: "execute_query", description: "", parameters: { type: "object", properties: { query: { anyOf: [{ type: "object" }] } } } } as AgAiToolSchema]);
     const events = [
       ...c.accept({ type: "text-start", id: "t" } as never),
       ...c.accept({ type: "text-delta", id: "t", text: "Checking." } as never),
@@ -89,6 +109,8 @@ describe("TurnCollector", () => {
       ...c.accept({ type: "finish", finishReason: "tool-calls", totalUsage: { inputTokens: 10, outputTokens: 5, totalTokens: 15 } } as never),
     ];
     expect(events.map((e) => e.type)).toEqual(["TEXT_MESSAGE_START", "TEXT_MESSAGE_CONTENT", "TEXT_MESSAGE_END", "TOOL_CALL_START", "TOOL_CALL_ARGS", "TOOL_CALL_END"]);
+    // Scoped to the turn: the provider numbers text blocks "0", "1" on every turn.
+    expect(events[0]).toMatchObject({ messageId: "r1:t" });
     const response = c.response();
     expect(response.status).toBe("completed");
     expect(response.usage).toMatchObject({ inputTokens: 10, outputTokens: 5 });
@@ -96,6 +118,15 @@ describe("TurnCollector", () => {
       { id: "msg_r1", kind: "output", type: "message", role: "assistant", status: "completed", content: [{ type: "text", text: "Checking.", annotations: [] }] },
       { id: "fc_k1", kind: "output", type: "function_call", callId: "k1", name: "execute_query", arguments: '{"query":{"kind":"apiQuery"}}', status: "completed" },
     ]);
+  });
+
+  it("joins a turn's text blocks as paragraphs", () => {
+    const c = new TurnCollector("r4", "m");
+    for (const [id, t] of [["0", "Let me check."], ["1", "All 17 match."]]) {
+      c.accept({ type: "text-start", id } as never);
+      c.accept({ type: "text-delta", id, text: t } as never);
+    }
+    expect(c.response().output[0]).toMatchObject({ content: [{ text: "Let me check.\n\nAll 17 match." }] });
   });
 
   it("reports a provider error and a cut-off turn", () => {

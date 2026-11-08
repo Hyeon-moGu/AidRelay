@@ -1,5 +1,6 @@
 // The public ledger: totals, live metrics and anonymized per-case rows. No PII ever leaves this module
 // (zip prefix only, no names/contact, only the scrubbed ledgerSummary as AI text). Server-only.
+import { isTier, maxRecommendedCents } from "@/lib/agent/policy";
 import { amountForCase } from "@/lib/agent/tools";
 import { listAllCases } from "@/lib/db/repos/cases";
 import { listRecentDonations } from "@/lib/db/repos/donations";
@@ -17,6 +18,8 @@ export interface LedgerRow {
   zipPrefix: string;
   tier: number | null;
   amountCents: number | null;
+  /** What the policy's grant level and household rule give this family (P-6), for checking the amount paid. */
+  policyAmountCents: number | null;
   summary: string;
   humanReviewed: boolean;
   payoutBatchId: string | null;
@@ -51,12 +54,14 @@ function median(values: number[]): number | null {
 
 export function toLedgerRow(c: CaseDoc): LedgerRow {
   const paidMs = c.timestamps.paid?.toMillis();
+  const tier = c.tier ?? c.aiDecision?.tier ?? null;
   return {
     caseId: c.id,
     status: c.status,
     zipPrefix: zipPrefix(c.zip),
-    tier: c.tier ?? c.aiDecision?.tier ?? null,
+    tier,
     amountCents: amountForCase(c),
+    policyAmountCents: isTier(tier) ? maxRecommendedCents(tier, c.householdSize ?? null) : null,
     summary: publicSummary(c.aiDecision?.ledgerSummary ?? ""),
     humanReviewed: !!c.humanDecision,
     payoutBatchId: c.payoutBatchId ?? null,
