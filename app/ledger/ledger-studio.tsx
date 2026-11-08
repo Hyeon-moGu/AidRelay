@@ -263,7 +263,7 @@ const LOCALE: AgStudioLocaleText = {
 } as AgStudioLocaleText;
 
 // The report sits on the page background; each widget is a card drawn like the page's own cards.
-const theme = studioTheme.withParams({
+export const ledgerTheme = studioTheme.withParams({
   fontFamily: "inherit",
   backgroundColor: "var(--card)",
   foregroundColor: "var(--foreground)",
@@ -316,7 +316,7 @@ export function LedgerStudio({ ledger, licenseKey }: { ledger: LedgerStudioData;
     <AgStudio
       style={{ width: "100%", height: "100%" }}
       mode="view"
-      theme={theme}
+      theme={ledgerTheme}
       data={data}
       initialState={initialState}
       widgets={ledgerWidgets}

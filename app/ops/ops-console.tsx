@@ -2,7 +2,7 @@
 
 // Operator console: the queue (AG Grid), bulk actions, the case side panel and the live activity feed.
 // Humans approve, reject and ask; the agent pays. Every action here lands in audit_log as human:ops.
-import { LogOut, RefreshCw } from "lucide-react";
+import { LogOut, RefreshCw, Sparkles } from "lucide-react";
 import dynamic from "next/dynamic";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
@@ -168,6 +168,13 @@ export function OpsConsole({ licenseKey }: { licenseKey: string }) {
         <div className="mx-auto flex h-14 max-w-[1600px] items-center gap-3 px-4">
           <Brand href="/ops" suffix="Operator console" />
           <nav className="ml-auto flex items-center gap-1">
+            <Link
+              href="/ops/audit"
+              className="inline-flex items-center gap-1.5 rounded-md bg-accent px-2.5 py-1.5 text-sm font-medium text-accent-foreground hover:bg-accent/80"
+            >
+              <Sparkles aria-hidden="true" className="size-4" />
+              Ask the ledger
+            </Link>
             <Link href="/ledger" className="rounded-md px-2.5 py-1.5 text-sm font-medium text-muted-foreground hover:text-foreground">
               Public ledger
             </Link>

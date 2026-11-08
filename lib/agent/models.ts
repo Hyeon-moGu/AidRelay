@@ -5,6 +5,8 @@ import { getEnv } from "@/lib/env";
 export const MODELS = {
   officer: "claude-sonnet-5-5",
   prescreen: "claude-haiku-5-5",
+  /** The /ops ledger auditor (AG Studio Agent Framework): quick, read-only questions over anonymized tables. */
+  auditor: "claude-haiku-5-5",
 } as const;
 
 /** Pinned so a stray ANTHROPIC_BASE_URL in the shell (some tools export one without /v1) cannot redirect the provider. */
@@ -23,6 +25,10 @@ export function officerModel() {
 
 export function prescreenModel() {
   return anthropic()(MODELS.prescreen);
+}
+
+export function auditorModel() {
+  return anthropic()(MODELS.auditor);
 }
 
 export interface Usage {

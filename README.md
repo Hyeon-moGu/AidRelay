@@ -109,6 +109,14 @@ Also: Next.js 15 (App Router), Firestore, Google Cloud Storage, Cloud Run, AG Gr
 - **Theming and layout**: `studioTheme.withParams` binds Studio to the site's CSS tokens (cards, borders, chart palette), so the report follows light and dark mode and is remounted when the scheme changes; `responsiveLayoutBreakpoints` give it a tablet layout and a stacked phone layout; `localeText` rewrites Studio's overlays and tooltips in the page's voice.
 - **Fallback**: if Studio fails to load, an error boundary shows the same ledger as plain AG Grid tables (`app/ledger/page.tsx`).
 
+### Ask the ledger: AG Studio's Agent Framework on Claude
+
+`/ops/audit` (operators only, linked as *Ask the ledger* in `/ops`) opens the same report in edit mode with Studio's AI panel. A volunteer asks in plain English ("Which grants did the AI case officer approve without a volunteer?", "Check every grant against the grant levels", "Add a chart of total paid by level of need, split by approver") and gets an answer computed from the tables, with case ids and PayPal payout ids as evidence, or a new chart on the dashboard.
+
+- **A custom agent talking to Studio's built-in agents.** Our *Ledger auditor* (`app/ops/audit/audit-studio.tsx`, a `directLlmRunner` with `view_schema`, `execute_query`, `view_report`, `view_widget` and `delegate_to`) is the primary agent. For charts it delegates to Studio's own *page* agent (adds the widget) and *widget* agent (maps the fields), then reads the widget back to confirm it shows data.
+- **A swapped-in model.** Studio ships no provider; every turn of every agent goes through our `AgLlmAdapter` (`app/ops/audit/claude-adapter.ts`) to `/api/ops/ask`, which runs Claude Haiku 5.5 through the Vercel AI SDK and streams Studio's AG-UI events back (`lib/ops/llm-bridge.ts`). The bridge also repairs the small argument mistakes a fast model makes (an object sent as a JSON string, a stray bracket) so a call is not wasted on a validation error.
+- **Safe by construction.** The model only proposes tool calls; Studio runs them in the browser on the same anonymized tables as `/ledger`, so no name, address or contact detail can reach the model. The auditor cannot approve, pay or change anything, the Anthropic key never leaves the server, and the route refuses anyone who is not signed in as an operator.
+
 ## Run it locally
 
 ```bash
