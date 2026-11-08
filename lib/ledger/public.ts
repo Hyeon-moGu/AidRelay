@@ -1,12 +1,12 @@
 // The public ledger: totals, live metrics and anonymized per-case rows. No PII ever leaves this module
 // (zip prefix only, no names/contact, only the scrubbed ledgerSummary as AI text). Server-only.
-import { loadPolicyText } from "@/lib/agent/policy";
 import { amountForCase } from "@/lib/agent/tools";
 import { listAllCases } from "@/lib/db/repos/cases";
 import { listRecentDonations } from "@/lib/db/repos/donations";
 import { getFund } from "@/lib/db/repos/fund";
 import { fundBalanceCents, type CaseDoc } from "@/lib/db/types";
 import { zipPrefix } from "@/lib/ledger/anonymize";
+import { publicSummary } from "@/lib/ledger/labels";
 
 /** Cases that appear as rows: money is committed or waiting. Everything else is counted, not listed. */
 const LISTED = new Set(["approved", "parked", "paying", "paid"]);
@@ -39,7 +39,6 @@ export interface Ledger {
   };
   rows: LedgerRow[];
   donations: Array<{ capturedAt: string; amountCents: number; currency: string; captureId: string }>;
-  policyMarkdown: string;
   generatedAt: string;
 }
 
@@ -58,7 +57,7 @@ export function toLedgerRow(c: CaseDoc): LedgerRow {
     zipPrefix: zipPrefix(c.zip),
     tier: c.tier ?? c.aiDecision?.tier ?? null,
     amountCents: amountForCase(c),
-    summary: c.aiDecision?.ledgerSummary ?? "",
+    summary: publicSummary(c.aiDecision?.ledgerSummary ?? ""),
     humanReviewed: !!c.humanDecision,
     payoutBatchId: c.payoutBatchId ?? null,
     receivedAt: c.timestamps.created.toDate().toISOString(),
@@ -68,7 +67,7 @@ export function toLedgerRow(c: CaseDoc): LedgerRow {
 }
 
 export async function buildLedger(): Promise<Ledger> {
-  const [fund, cases, donations, policyMarkdown] = await Promise.all([getFund(), listAllCases(), listRecentDonations(50), loadPolicyText()]);
+  const [fund, cases, donations] = await Promise.all([getFund(), listAllCases(), listRecentDonations(50)]);
   const paid = cases.filter((c) => c.status === "paid");
   const rows = cases
     .filter((c) => LISTED.has(c.status))
@@ -100,7 +99,6 @@ export async function buildLedger(): Promise<Ledger> {
     },
     rows,
     donations: donations.map((d) => ({ capturedAt: d.capturedAt!.toDate().toISOString(), amountCents: d.amountCents, currency: d.currency, captureId: d.captureId ?? "" })),
-    policyMarkdown,
     generatedAt: new Date().toISOString(),
   };
 }

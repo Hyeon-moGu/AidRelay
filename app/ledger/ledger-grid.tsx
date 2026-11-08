@@ -6,6 +6,7 @@ import { AgGridReact } from "ag-grid-react";
 import { useMemo } from "react";
 import { StatusBadge } from "@/components/status-badge";
 import { duration, local, money } from "@/lib/format";
+import { NEED_LABEL } from "@/lib/ledger/labels";
 import type { LedgerRow } from "@/lib/ledger/public";
 import { ledgerGridTheme } from "@/lib/ui/grid-theme";
 
@@ -33,13 +34,13 @@ export function LedgerGrid({ rows }: { rows: LedgerRow[] }) {
       { field: "caseId", headerName: "Case", width: 110, cellClass: "font-mono text-[12.5px]" },
       { field: "status", width: 170, cellRenderer: StatusCell },
       { field: "amountCents", headerName: "Amount", width: 115, type: "rightAligned", valueFormatter: (p) => money(p.value), cellClass: "tabular-nums font-medium" },
-      { field: "summary", headerName: "What happened (AI summary)", flex: 1, minWidth: 280, tooltipField: "summary" },
+      { field: "summary", headerName: "What happened", flex: 1, minWidth: 280, tooltipField: "summary" },
       { field: "zipPrefix", headerName: "Zip", width: 80, cellClass: "tabular-nums" },
-      { field: "tier", width: 72, type: "rightAligned", cellClass: "tabular-nums" },
-      { field: "humanReviewed", headerName: "Reviewed by", width: 120, valueFormatter: (p) => (p.value ? "a volunteer" : "the agent") },
-      { field: "payoutBatchId", headerName: "PayPal payout batch", width: 190, cellRenderer: BatchCell },
+      { field: "tier", headerName: "Need", width: 170, valueFormatter: (p) => (p.value == null ? "" : `${p.value} · ${NEED_LABEL[p.value] ?? ""}`) },
+      { field: "humanReviewed", headerName: "Approved by", width: 150, valueFormatter: (p) => (p.value ? "A volunteer" : "The AI on its own") },
+      { field: "payoutBatchId", headerName: "PayPal payout id", width: 190, cellRenderer: BatchCell },
       { field: "minutesToCash", headerName: "Time to cash", width: 120, type: "rightAligned", valueFormatter: (p) => (p.value == null ? "" : duration(p.value)), cellClass: "tabular-nums" },
-      { field: "receivedAt", headerName: "Received", width: 140, valueFormatter: (p) => local(p.value), sort: "desc", cellClass: "tabular-nums" },
+      { field: "receivedAt", headerName: "Applied", width: 140, valueFormatter: (p) => local(p.value), sort: "desc", cellClass: "tabular-nums" },
     ],
     [],
   );

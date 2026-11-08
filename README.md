@@ -12,7 +12,7 @@ Built for the [PayPal AI Hackathon](https://paypalaihackathon.devpost.com/) (Dev
 
 | Page | What it is |
 |---|---|
-| [`/ledger`](https://aidrelay-545799830947.us-central1.run.app/ledger) | Public ledger: every donation and grant with its PayPal record id, live metrics, the published policy. No names or addresses. |
+| [`/ledger`](https://aidrelay-545799830947.us-central1.run.app/ledger) | Public ledger: an AG Studio report of every grant and donation with its PayPal record id, headline metrics, grants by tier and who approved them (click a chart to filter the tables), and the published policy. No names or addresses. |
 | [`/donate`](https://aidrelay-545799830947.us-central1.run.app/donate) | PayPal donate button (sandbox). |
 | [`/apply`](https://aidrelay-545799830947.us-central1.run.app/apply) | Applicant intake in English and Spanish, with photo upload. Ends on a private status link. |
 | `/ops` | Operator console: the review queue, the agent's reasons, bulk approve, the live agent activity feed. The password is in the Devpost testing instructions, not in this repo. |
@@ -66,7 +66,7 @@ A second application with the same email, address or photo is flagged as the sam
               +-----------------------+------------------------+
               v                                                v
    /ops: operators supervise                       /ledger: the public audits
-   (AG Grid queue, bulk approve, activity feed)    (batch ids, metrics, policy)
+   (AG Grid queue, bulk approve, activity feed)    (AG Studio report, batch ids, policy)
 ```
 
 The agent is event-driven:
@@ -95,7 +95,18 @@ The agent is event-driven:
 | **Claude Sonnet 5.5** | The Case Officer's agent loop (tool use through the Vercel AI SDK) and the multimodal decision on each case, returned as a schema-validated `Decision`. The policy and system prompt are prompt-cached. |
 | **Claude Haiku 5.5** | Photo pre-screen before the decision: is each image usable evidence, and what does it show. |
 
-Also: Next.js 15 (App Router), Firestore, Google Cloud Storage, Cloud Run, AG Grid Enterprise for the operator queue (grouping by tier, bulk selection) and AG Grid for the ledger tables.
+Also: Next.js 15 (App Router), Firestore, Google Cloud Storage, Cloud Run, AG Grid Enterprise for the operator queue (grouping by tier, bulk selection, inline amount edit) and **AG Studio** for the public ledger (next section).
+
+## How the public ledger uses AG Studio
+
+`/ledger` is one AG Studio report in view mode, built from the anonymized ledger (no names, addresses or contacts ever reach it) and kept live: the page re-reads `/api/ledger` every 10 seconds, so a donation and the payouts it unlocks appear while you watch.
+
+- **Two custom widgets** (`app/ledger/studio-widgets.tsx`), registered with `createWidgets({ additionalTypes, overrides })`:
+  - **Where the money is** (`fund-progress`): raised, paid, on its way, waiting for funds and not yet granted as one bar. It reads its numbers with `widgetApi.getData(..., { crossFilter: "highlight" })`, so selecting anything else in the report fades the bar and keeps the selected share solid ("Your selection: $1,750 paid to 5 households, 35% of everything paid so far"). When approved families are waiting, it says how much would pay them and links to `/donate`.
+  - **Money in, money out** (`money-trail`): donations and payouts on one timeline, with how long each family waited and which payouts went out right after a donation. Clicking a payout calls `widgetApi.toggleCrossFilter`, which filters the charts, the fund bar and the grant table to that case.
+- **Built-in widgets, configured**: a stacked column chart of grants by level of need, a donut of who approved each family (a volunteer or the AI case officer), and the full grant table with a total row, value-change flashes and custom cell renderers (status badges, approver icons, mono payout ids) through the grid override's `createCellRenderer`. Every chart, slice, payout and row cross-filters the rest.
+- **Theming and layout**: `studioTheme.withParams` binds Studio to the site's CSS tokens (cards, borders, chart palette), so the report follows light and dark mode and is remounted when the scheme changes; `responsiveLayoutBreakpoints` give it a tablet layout and a stacked phone layout; `localeText` rewrites Studio's overlays and tooltips in the page's voice.
+- **Fallback**: if Studio fails to load, an error boundary shows the same ledger as plain AG Grid tables (`app/ledger/page.tsx`).
 
 ## Run it locally
 

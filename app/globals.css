@@ -77,7 +77,7 @@
   --danger-soft: #fbe6e3;
   --wait: #475569;
   --wait-soft: #edf0f3;
-  --bar-paid: #2f8f5b;
+  --bar-paid: #237a4c;
   --bar-reserved: #0f6b70;
   --bar-available: #d9d6ce;
   --radius: 0.625rem;
@@ -202,6 +202,40 @@
     transition-property: color, background-color, border-color, opacity !important;
     scroll-behavior: auto !important;
   }
+}
+
+/* A soft wash of the brand colors behind page heroes. Static: nothing animates. */
+.hero-glow {
+  background:
+    radial-gradient(56rem 26rem at 88% -12%, color-mix(in srgb, var(--primary) 13%, transparent), transparent 70%),
+    radial-gradient(40rem 22rem at -6% 0%, color-mix(in srgb, var(--bar-paid) 9%, transparent), transparent 70%);
+}
+
+/* The ledger's AG Studio report: room inside each card (Studio's own padding param is the gap between cards). */
+.ledger-report .ag-studio-layout-widget-header {
+  margin: 16px 18px 6px;
+}
+.ledger-report .ag-studio-layout-widget-body {
+  padding: 0 10px 10px;
+}
+/* Equal-width digits: amounts line up, and every case id measures the same when columns autosize. */
+.ledger-report .ag-cell {
+  font-variant-numeric: tabular-nums;
+}
+/* Our cell renderers (badge, icon) are a few px wider than the text autosize measures: let them show whole. */
+.ledger-report .ag-cell[col-id="grants.status"],
+.ledger-report .ag-cell[col-id="grants.decidedBy"] {
+  text-overflow: clip;
+  overflow: visible;
+}
+/* Approved families waiting for more donations: hatched, so it reads as money not yet there. */
+.bar-waiting {
+  background: repeating-linear-gradient(-45deg, var(--wait) 0 3px, color-mix(in srgb, var(--wait) 45%, transparent) 3px 6px);
+}
+/* Autosize leaves the case column a hair short of "C-004"; borrow the right padding instead of an ellipsis. */
+.ledger-report .ag-cell[col-id="grants.caseId"] {
+  padding-right: 2px;
+  text-overflow: clip;
 }
 
 /* AG Grid: editable amount cells and quiet group rows. */

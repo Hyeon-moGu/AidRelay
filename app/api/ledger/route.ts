@@ -8,7 +8,7 @@ export const dynamic = "force-dynamic";
 export async function GET() {
   try {
     const ledger = await buildLedger();
-    return ok({ ...ledger, policyMarkdown: undefined, policyUrl: "/ledger#policy" }, { headers: { "Cache-Control": "public, max-age=15" } });
+    return ok({ ...ledger, policyUrl: "/policy" }, { headers: { "Cache-Control": "public, max-age=15" } });
   } catch (err) {
     return handleRouteError(err, "ledger");
   }
