@@ -90,13 +90,25 @@ export function CaseGrid({
         editable: (p) => !!p.data && EDITABLE.has(p.data.status),
         cellEditor: "agNumberCellEditor",
         cellEditorParams: { min: 1, max: 1300, precision: 2 },
-        valueFormatter: (p) => dollars(p.value),
-        cellClass: (p) => (p.data && EDITABLE.has(p.data.status) ? "cell-editable tabular-nums font-medium" : "tabular-nums font-medium"),
+        // A case the agent could not price (needs info, or flagged) shows a prompt instead of an empty amber cell.
+        valueFormatter: (p) => (p.value == null && p.data && EDITABLE.has(p.data.status) ? "Set amount" : dollars(p.value)),
+        cellClass: (p) => {
+          if (!p.data || !EDITABLE.has(p.data.status)) return "tabular-nums font-medium";
+          return p.value == null ? "cell-editable text-muted-foreground" : "cell-editable tabular-nums font-medium";
+        },
         aggFunc: "sum",
       },
       { field: "requestedAmountCents", headerName: "Requested", width: 110, type: "rightAligned", valueFormatter: (p) => money(p.value), cellClass: "tabular-nums" },
       { field: "confidence", width: 105, type: "rightAligned", valueFormatter: (p) => (p.value == null ? "" : `${Math.round(p.value * 100)}%`), cellClass: "tabular-nums" },
-      { field: "redFlags", headerName: "Flags", width: 220, cellRenderer: FlagsCell, autoHeight: true },
+      {
+        field: "redFlags",
+        headerName: "Flags",
+        width: 220,
+        cellRenderer: FlagsCell,
+        autoHeight: true,
+        // Text form for filtering, copy and export; AG Grid 36 also warns (#48) when an array column has none.
+        valueFormatter: (p) => (Array.isArray(p.value) ? p.value.join(", ") : ""),
+      },
       { field: "secondEvaluationAgrees", headerName: "2nd eval", width: 95, cellRenderer: SecondEvalCell },
       { field: "ledgerSummary", headerName: "AI summary", flex: 1, minWidth: 240, tooltipField: "ledgerSummary" },
       { field: "zip", width: 85, cellClass: "tabular-nums" },
@@ -141,7 +153,8 @@ export function CaseGrid({
         selectionColumnDef={{ pinned: "left", width: 48 }}
         groupDefaultExpanded={1}
         suppressAggFuncInHeader
-        autoGroupColumnDef={{ headerName: "Tier", minWidth: 170, pinned: "left" }}
+        // Highest tier first, the order the agent pays in (P-8); without a sort, groups follow the first row.
+        autoGroupColumnDef={{ headerName: "Tier", minWidth: 170, pinned: "left", sort: "desc" }}
         onGridReady={onGridReady}
         onSelectionChanged={onSelectionChanged}
         onRowClicked={onRowClicked}

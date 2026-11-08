@@ -37,6 +37,8 @@ export function OpsConsole({ licenseKey }: { licenseKey: string }) {
   const [filter, setFilter] = useState<(typeof STATUS_FILTERS)[number]>("all");
   const [selected, setSelected] = useState<string[]>([]);
   const [detail, setDetail] = useState<CaseDetail | null>(null);
+  /** The case being fetched for the side panel, so a click shows at once that it registered. */
+  const [opening, setOpening] = useState<string | null>(null);
   const [note, setNote] = useState("");
   const [busy, setBusy] = useState<string | null>(null);
   const [notice, setNotice] = useState<Notice>(null);
@@ -97,8 +99,13 @@ export function OpsConsole({ licenseKey }: { licenseKey: string }) {
 
   const openCase = useCallback(
     async (id: string) => {
-      const data = await get<CaseDetail>(`/api/ops/cases/${id}`);
-      if (data) setDetail(data);
+      setOpening(id);
+      try {
+        const data = await get<CaseDetail>(`/api/ops/cases/${id}`);
+        if (data) setDetail(data);
+      } finally {
+        setOpening((current) => (current === id ? null : current));
+      }
     },
     [get],
   );
@@ -176,7 +183,7 @@ export function OpsConsole({ licenseKey }: { licenseKey: string }) {
         <div className="flex flex-wrap items-end justify-between gap-4">
           <div>
             <h1 className="text-xl font-semibold tracking-tight">Case queue</h1>
-            <p className="text-[13px] text-muted-foreground">Volunteers approve, reject and ask. The Case Officer pays, inside the guardrails.</p>
+            <p className="text-[13px] text-muted-foreground">Volunteers approve, reject and ask. The AI case officer pays, inside the guardrails.</p>
           </div>
           {fund && (
             <dl className="flex flex-wrap gap-x-6 gap-y-2">
@@ -275,12 +282,19 @@ export function OpsConsole({ licenseKey }: { licenseKey: string }) {
               <h2 id="panel-title" className="sr-only">
                 Selected case
               </h2>
-              <CasePanel detail={detail} onClose={() => setDetail(null)} />
+              {opening && opening !== detail?.case.id ? (
+                <p role="status" className="flex items-center justify-center gap-2 py-6 text-sm text-muted-foreground">
+                  <span aria-hidden="true" className="size-1.5 animate-pulse rounded-full bg-primary" />
+                  Loading <span className="font-mono text-foreground">{opening}</span>…
+                </p>
+              ) : (
+                <CasePanel detail={detail} onClose={() => setDetail(null)} />
+              )}
             </section>
             <section aria-labelledby="feed-title" className="rounded-xl border border-border bg-card">
               <div className="flex items-center justify-between border-b border-border px-4 py-3">
                 <h2 id="feed-title" className="text-sm font-semibold">
-                  Case Officer activity
+                  AI case officer activity
                 </h2>
                 <span className="inline-flex items-center gap-1.5 text-xs font-medium text-success">
                   <span aria-hidden="true" className="size-1.5 rounded-full bg-current" />
