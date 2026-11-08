@@ -58,7 +58,7 @@
       "requestedAmountCents": 60000,
       "narrative": "I'm a home health aide and single mom of three. Our rental on Spring St flooded to about two feet and the landlord says it will be weeks. We're in a motel on Route 9. My youngest has asthma and his nebulizer and meds were in the flooded room. I've missed four days of work.",
       "photos": ["photos/C-004-bedroom-waterline.jpg", "photos/C-004-motel-receipt.jpg"],
-      "docs": ["docs/C-004-pharmacy-list.jpg"],
+      "docs": ["photos/C-004-pharmacy-list.jpg"],
       "contact": { "name": "Keisha Lawrence", "email": "{{RECIPIENT_4}}", "phone": "+1-828-555-0104", "address": "23 Spring St Apt B, Cedar Falls" },
       "_photoBrief": "Photo 1: bedroom with a clear water line about 60cm up the wall, mattress on the floor soaked. Photo 2: a motel receipt (fictional motel name) showing 3 nights. Doc: a handwritten list of medications on notebook paper.",
       "_expected": { "eligibility": "eligible", "tier": 4, "recommendedAmountCents": 55000, "redFlags": [], "autoPaid": false, "status": "needs_review", "reason": "tier 4 + P-6 household adjustment (+$50) = $550, above limit", "clauses": ["P-2", "P-3", "P-6", "P-9"] },
@@ -150,13 +150,17 @@
     }
   ],
   "bulk": {
-    "_readme": "Generated cases for the ops-console 'approve a batch at once' scene and to make the ledger's auto-pay share realistic (~65%). Each generated case gets a DISTINCT photo from photos/pool/ and a DISTINCT recipient token {{BULK_01}}..{{BULK_12}} (assigned in generation order: tier-2 cases get BULK_01..08, tier-3 cases get BULK_09..12) so P-4 dedupe does not fire. Generate pool images with Vertex AI Imagen or any image model using the briefs below; one image per case.",
+    "_readme": "Generated cases for the ops-console 'approve a batch at once' scene and to make the ledger's auto-pay share realistic (~65%). Each generated case gets a DISTINCT photo from photos/pool/ and a DISTINCT recipient token {{BULK_01}}..{{BULK_12}} (assigned in generation order: tier-2 cases get BULK_01..08, tier-3 cases get BULK_09..12) so P-4 dedupe does not fire. Case ids continue after the hand-crafted ones (C-011..C-018 tier 2, C-019..C-022 tier 3). Pool files are named by template and order: photos/pool/tier2_clean-01.jpg..-08.jpg and photos/pool/tier3_displaced-01.jpg..-04.jpg. Generate them with Vertex AI Imagen or any image model using the briefs below; one image per case. Names are fictional and assigned per language in order.",
     "generate": [
       { "template": "tier2_clean", "count": 8, "lang": { "en": 6, "es": 2 }, "recipientTokens": ["{{BULK_01}}", "{{BULK_02}}", "{{BULK_03}}", "{{BULK_04}}", "{{BULK_05}}", "{{BULK_06}}", "{{BULK_07}}", "{{BULK_08}}"] },
       { "template": "tier3_displaced", "count": 4, "lang": { "en": 3, "es": 1 }, "recipientTokens": ["{{BULK_09}}", "{{BULK_10}}", "{{BULK_11}}", "{{BULK_12}}"] }
     ],
     "zipPool": ["28501", "28502", "28503", "28504", "28505"],
     "streets": ["Mill Creek Rd", "Riverbend Ln", "Low Gap Rd", "Spring St", "Orchard Ave", "Hilltop Dr", "Creekside Park", "Main St", "Laurel Way", "Depot St"],
+    "names": {
+      "en": ["Avery Collins", "Jordan Pike", "Casey Holloway", "Taylor Brooks", "Riley Dawson", "Quinn Harper", "Drew Ellison", "Sam Whitaker", "Jamie Lowell"],
+      "es": ["Ana Lucía Torres", "Javier Morales", "Rosa Delgado"]
+    },
     "templates": {
       "tier2_clean": {
         "householdSize": [1, 2, 3, 4],

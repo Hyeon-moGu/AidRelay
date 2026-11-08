@@ -5,7 +5,7 @@ Everything here is fictional: Cedar County, Cedar Falls, every name, address, an
 ## Files
 - `cases.json`, 10 hand-crafted cases (3 auto-pay, 3 human-approve, 2 needs-info, 2 flagged; 2 in Spanish) + a `bulk` generator spec for 12 more (8 `tier2_clean`, 4 `tier3_displaced`).
 - `accounts.example.json`, template for the sandbox account mapping. Copy to `accounts.json` (git-ignored). Every case pays to its own account: policy P-4 flags a repeated contact, so two cases sharing one payout email would be treated as one household.
-- `photos/`, one image per hand-crafted photo path, plus `photos/pool/` with 12 distinct images for the bulk cases.
+- `photos/`, one image per hand-crafted photo and document path (C-004's pharmacy list too), plus `photos/pool/` with 12 distinct images for the bulk cases, named `tier2_clean-01.jpg` … `tier2_clean-08.jpg` and `tier3_displaced-01.jpg` … `tier3_displaced-04.jpg`.
 
 ## Making the photos (Day 2, ~1 hour)
 The agent is multimodal: placeholder images will make it answer `needs_info` for everything. Use the `_photoBrief` text in `cases.json` as the prompt for an image model. Suggested: **Vertex AI Imagen** on the GCP credits (one batch job, ~22 images), or any image generator you have. Rules:
@@ -14,7 +14,9 @@ The agent is multimodal: placeholder images will make it answer `needs_info` for
 - Bulk pool images must all be different (dedupe compares perceptual hashes).
 - Save as JPEG ≤ 1024px on the long side; the app resizes anyway, but smaller uploads keep the seed fast.
 
-Until the images exist, `pnpm seed --placeholders` writes labeled gray images so the pipeline can be exercised; expect `needs_info` decisions in that mode. Placeholder images also hash almost identically (dHash of a flat image), so every case after the first is flagged `duplicate_photo_hash` and lands in `needs_review`, that is the dedupe working, not a bug. Only generated photos exercise the real decision path.
+Until the images exist, `pnpm seed --placeholders` writes labeled gray images for every photo still missing from `seed/photos/`, so the pipeline can be exercised with a partial set; cases that rely on placeholders get `needs_info` decisions. Each placeholder carries a block pattern derived from its file name, so different files hash apart and only C-009 (which reuses C-003's file) is flagged `duplicate_photo_hash`. Only generated photos exercise the real decision path.
+
+`pnpm seed` checks the photos before it writes anything: every listed file must exist, and two different files used by different cases must not look alike to the duplicate detector (dHash distance ≤ 6), or it stops and names the pair.
 
 ## Running
 ```bash
@@ -26,6 +28,8 @@ pnpm seed            # creates the fund (raised = 0), 10 cases, 12 bulk cases, u
 pnpm agent:sweep     # lets the Case Officer process everything
 pnpm seed --reset    # wipes Firestore collections + GCS prefix for this fund and reseeds (donate again afterwards)
 ```
+
+Without `--reset`, `pnpm seed` refuses when any seed case id already exists, and an existing fund keeps its totals (only name, currency and policy version are updated). `--reset` deletes every document in `cases`, `donations`, `payouts`, `audit_log`, `agent_runs`, `webhook_events` and `auto_approvals`, the `fund/<FUND_ID>` document and every object under `gs://<GCS_BUCKET>/cases/`. It refuses while a case is `paying` or a payout is still pending at PayPal, because the ledger would lose track of that money; `--force` overrides. Seeding never wakes the agent: run `pnpm agent:sweep` after donating.
 
 Expected after `agent:sweep` with ≥ $2,750 raised: C-001, C-002, C-006 and the 8 `tier2_clean` bulk cases → `paid` (11 × $250 = $2,750); C-003, C-004, C-005, C-009, C-010 and the 4 `tier3_displaced` bulk cases → `needs_review`; C-007, C-008 → `needs_info`. With less raised, eligible cases beyond the balance → `parked` (first-come) and are paid on the next donation. `tests/seed.test.ts` asserts these against `_expected`.
 

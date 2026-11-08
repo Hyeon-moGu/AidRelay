@@ -49,6 +49,7 @@ seed/sandbox-accounts.csv
 seed/sandbox-accounts-nobom.csv
 seed/*.csv
 deploy/env.yaml
+/temp/
 
 # local-only planning docs and assistant config (never published)
 AGENTS.md

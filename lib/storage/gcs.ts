@@ -50,3 +50,16 @@ export async function prepareImageForModel(input: Buffer): Promise<{ data: Buffe
     .toBuffer();
   return { data, mediaType: "image/jpeg" };
 }
+
+/** Every applicant object lives under this prefix (`cases/<caseId>/…`). */
+export const CASES_PREFIX = "cases/";
+
+/** Deletes every object under a folder prefix (`pnpm seed --reset`). Returns how many objects were removed. */
+export async function deletePrefix(prefix: string): Promise<number> {
+  if (!/^[\w-]+\/$/.test(prefix)) throw new Error(`refusing to delete outside a top-level folder prefix: "${prefix}"`);
+  const [files] = await bucket().getFiles({ prefix });
+  for (let i = 0; i < files.length; i += 20) {
+    await Promise.all(files.slice(i, i + 20).map((f) => f.delete({ ignoreNotFound: true })));
+  }
+  return files.length;
+}
