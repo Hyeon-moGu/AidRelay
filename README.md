@@ -127,7 +127,7 @@ Also: Next.js 15 (App Router), Firestore, Google Cloud Storage, Cloud Run, AG Gr
    tool calls ← run by Studio in the browser on the anonymized grants, donations and fund tables
 ```
 
-Studio APIs used: `createAiHarness` with a builder, `directLlmRunner` for our agent and for the built-in `data`, `page` and `widget` agents, `AgLlmAdapter`, `ctx.studio.*` tools, `tools.delegateTo`, `tools.renameThread`, prompt starters, a telemetry observer (each question shows its turns, agents, tokens and cost above the report) and `AgStudioAiModule`. The grants table carries a code-computed *Policy amount* (grant level plus the household rule), so "check every grant against the rules" compares numbers instead of reading summaries. Thinking is off on this route because Studio's conversation history has no place for signed thinking blocks; the system prompt and the tool catalogue are prompt-cached, which keeps a 15-turn chart request at about one cent.
+Studio APIs used: `createAiHarness` with a builder, `directLlmRunner` for our agent and for the built-in `data`, `page` and `widget` agents, `AgLlmAdapter`, `ctx.studio.*` tools, `tools.delegateTo`, `tools.renameThread`, prompt starters, a telemetry observer (each question shows its turns, agents, tokens and cost above the report) and `AgStudioAiModule`. The grants table carries a code-computed *Policy amount* (grant level plus the household rule), so "check every grant against the rules" compares numbers instead of reading summaries. Thinking is off on this route because Studio's conversation history has no place for signed thinking blocks; the system prompt and the tool catalogue are prompt-cached, which keeps a 15-turn chart request at one to two cents.
 
 ## Run it locally
 

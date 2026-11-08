@@ -52,6 +52,21 @@ describe("toPrompt", () => {
     expect(toToolChoice({ toolChoice: "required" }, undefined)).toBeUndefined();
   });
 
+  it("answers a tool call that was stopped before its result, and drops a result without its call", () => {
+    const request = {
+      responseFormat: { type: "text" },
+      input: [
+        { id: "1", kind: "input", type: "message", role: "user", status: "completed", content: text("First") },
+        { id: "2", kind: "output", type: "function_call", callId: "c1", name: "execute_query", arguments: "{}" },
+        { id: "3", kind: "input", type: "message", role: "user", status: "completed", content: text("Never mind, second") },
+        { kind: "input", type: "function_call_output", callId: "ghost", output: "orphan", status: "completed" },
+      ],
+    } as unknown as AgLlmRequest;
+    const { messages } = toPrompt(request);
+    expect(messages.map((m) => m.role)).toEqual(["user", "assistant", "tool", "user"]);
+    expect(messages[2].content).toEqual([{ type: "tool-result", toolCallId: "c1", toolName: "execute_query", output: { type: "text", value: "(not run)" } }]);
+  });
+
   it("never ends on an assistant turn, which the Messages API would read as a prefill", () => {
     const request = {
       responseFormat: { type: "text" },
@@ -118,6 +133,13 @@ describe("TurnCollector", () => {
       { id: "msg_r1", kind: "output", type: "message", role: "assistant", status: "completed", content: [{ type: "text", text: "Checking.", annotations: [] }] },
       { id: "fc_k1", kind: "output", type: "function_call", callId: "k1", name: "execute_query", arguments: '{"query":{"kind":"apiQuery"}}', status: "completed" },
     ]);
+  });
+
+  it("counts cache reads and writes inside inputTokens, as Studio's AgAiUsage expects", () => {
+    const c = new TurnCollector("r5", "m");
+    c.accept({ type: "finish-step", providerMetadata: { anthropic: { cacheCreationInputTokens: 900 } } } as never);
+    c.accept({ type: "finish", finishReason: "stop", totalUsage: { inputTokens: 100, cachedInputTokens: 4000, outputTokens: 50 } } as never);
+    expect(c.response().usage).toEqual({ inputTokens: 5000, outputTokens: 50, totalTokens: 5050, cachedInputTokens: 4000, cacheWriteTokens: 900 });
   });
 
   it("joins a turn's text blocks as paragraphs", () => {

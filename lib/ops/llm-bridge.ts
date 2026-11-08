@@ -68,6 +68,8 @@ export function toPrompt(request: Pick<AgLlmRequest, "input" | "instructions" | 
     // reasoning items: nothing to send back with thinking off
   }
 
+  pairToolResults(messages);
+
   if (request.responseFormat?.type === "json") {
     system.push(
       `Reply with a single JSON object named "${request.responseFormat.name}" that matches this JSON Schema, with no prose and no code fences:\n${JSON.stringify(request.responseFormat.schema)}`,
@@ -85,6 +87,37 @@ export function toPrompt(request: Pick<AgLlmRequest, "input" | "instructions" | 
   }
 
   return { system: system.join("\n\n"), messages };
+}
+
+/**
+ * The Messages API needs every tool call answered by a result in the next message, and no result without
+ * its call. A run stopped between the two (the operator pressed Stop) would leave either behind, so a
+ * missing result is filled in as "(not run)" and an orphan result is dropped.
+ */
+function pairToolResults(messages: ModelMessage[]): void {
+  for (let i = 0; i < messages.length; i++) {
+    const m = messages[i];
+    if (m.role !== "assistant" || !Array.isArray(m.content)) continue;
+    const calls = m.content.flatMap((p) => (p.type === "tool-call" ? [p] : []));
+    if (calls.length === 0) continue;
+    const next = messages[i + 1];
+    const results = next?.role === "tool" ? next.content : [];
+    const answered = new Set(results.flatMap((p) => (p.type === "tool-result" ? [p.toolCallId] : [])));
+    const missing = calls
+      .filter((c) => !answered.has(c.toolCallId))
+      .map((c) => ({ type: "tool-result" as const, toolCallId: c.toolCallId, toolName: c.toolName, output: { type: "text" as const, value: "(not run)" } }));
+    if (missing.length === 0) continue;
+    if (next?.role === "tool") next.content.push(...missing);
+    else messages.splice(i + 1, 0, { role: "tool", content: missing });
+  }
+  for (let i = messages.length - 1; i >= 0; i--) {
+    const m = messages[i];
+    if (m.role !== "tool") continue;
+    const prev = messages[i - 1];
+    const called = new Set(prev?.role === "assistant" && Array.isArray(prev.content) ? prev.content.flatMap((p) => (p.type === "tool-call" ? [p.toolCallId] : [])) : []);
+    m.content = m.content.filter((p) => p.type !== "tool-result" || called.has(p.toolCallId));
+    if (m.content.length === 0) messages.splice(i, 1);
+  }
 }
 
 function parseArgs(args: string): unknown {
@@ -191,6 +224,8 @@ export class TurnCollector {
   private textOrder: string[] = [];
   private calls: AgAiToolCall[] = [];
   private finishReason: string | undefined;
+  /** Tokens written to the prompt cache; the provider reports them only in its metadata. */
+  private cacheWrite = 0;
   private usage: AgLlmResponse["usage"];
   private error: string | undefined;
 
@@ -228,15 +263,20 @@ export class TurnCollector {
           { type: "TOOL_CALL_END", toolCallId: part.toolCallId },
         ];
       }
-      case "finish":
-        this.finishReason = part.finishReason;
-        this.usage = {
-          inputTokens: part.totalUsage.inputTokens ?? 0,
-          outputTokens: part.totalUsage.outputTokens ?? 0,
-          totalTokens: part.totalUsage.totalTokens,
-          cachedInputTokens: part.totalUsage.cachedInputTokens,
-        };
+      case "finish-step": {
+        const anthropic = part.providerMetadata?.anthropic as { cacheCreationInputTokens?: number | null } | undefined;
+        this.cacheWrite += Number(anthropic?.cacheCreationInputTokens ?? 0);
         return [];
+      }
+      case "finish": {
+        this.finishReason = part.finishReason;
+        // Studio's AgAiUsage counts cache reads and writes inside inputTokens; the provider reports them apart.
+        const read = part.totalUsage.cachedInputTokens ?? 0;
+        const input = (part.totalUsage.inputTokens ?? 0) + read + this.cacheWrite;
+        const output = part.totalUsage.outputTokens ?? 0;
+        this.usage = { inputTokens: input, outputTokens: output, totalTokens: input + output, cachedInputTokens: read, cacheWriteTokens: this.cacheWrite };
+        return [];
+      }
       case "error":
         this.error = part.error instanceof Error ? part.error.message : String(part.error);
         return [];
