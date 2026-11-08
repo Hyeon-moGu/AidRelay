@@ -12,7 +12,8 @@ Built for the [PayPal AI Hackathon](https://paypalaihackathon.devpost.com/) (Dev
 
 | Page | What it is |
 |---|---|
-| [`/ledger`](https://aidrelay-545799830947.us-central1.run.app/ledger) | Public ledger: an AG Studio report of every grant and donation with its PayPal record id, headline metrics, grants by tier and who approved them (click a chart to filter the tables), and the published policy. No names or addresses. |
+| [`/ledger`](https://aidrelay-545799830947.us-central1.run.app/ledger) | Public ledger, live: an AG Studio report with two custom widgets (where the money is, and a money-in, money-out timeline), grants by level of need, who approved each family, and every grant with its PayPal payout id. Click any bar, slice or payout to filter the whole report. No names or addresses. |
+| [`/policy`](https://aidrelay-545799830947.us-central1.run.app/policy) | The rules the AI case officer follows, in plain words, with the full policy it reads underneath. |
 | [`/donate`](https://aidrelay-545799830947.us-central1.run.app/donate) | PayPal donate button (sandbox). |
 | [`/apply`](https://aidrelay-545799830947.us-central1.run.app/apply) | Applicant intake in English and Spanish, with photo upload. Ends on a private status link. |
 | `/ops` | Operator console: the review queue, the agent's reasons, bulk approve, the live agent activity feed. The password is in the Devpost testing instructions, not in this repo. |
@@ -27,11 +28,11 @@ Built for the [PayPal AI Hackathon](https://paypalaihackathon.devpost.com/) (Dev
 
 **Try the loop in about five minutes:**
 
-1. Open `/ledger`. Note *Raised*, *Paid out* and the grants table with PayPal batch ids.
-2. Donate on `/donate` as the donor (any amount, for example $20). *Raised* updates within seconds. If a case was waiting for funds, the agent pays it right away.
+1. Open `/ledger` and keep it open. Note *Raised*, *Paid to families* and the grant table with PayPal payout ids.
+2. Donate on `/donate` as the donor (any amount, for example $20). Within seconds the ledger shows the donation in *Money in, money out* and updates *Raised* by itself. If a family was waiting for funds, the agent pays it right away and that payout appears under the donation.
 3. Apply on `/apply`. The event is fictional (the Cedar County Flood, declared area zip codes 28501 to 28505). Describe some flood damage, attach a photo of water damage, and use the judge recipient email. Your status link shows the decision in about a minute: paid, a follow-up question, or human review. The agent never rejects.
 4. Open `/ops`. Cases the agent could not decide alone wait there with its reasons and the policy clause it relied on. Approve one; it is paid, or parked until the fund has the money.
-5. Log in as the recipient on sandbox.paypal.com to see the money arrive, then find the same batch id on `/ledger`.
+5. Log in as the recipient on sandbox.paypal.com to see the money arrive, then find the same payout id on `/ledger` (click the payout in *Money in, money out* to filter the report to that case).
 
 A second application with the same email, address or photo is flagged as the same household (policy P-4) and sent to human review. That is the duplicate check working.
 
