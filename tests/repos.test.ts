@@ -19,7 +19,7 @@ vi.mock("@/lib/paypal/payouts", async (importOriginal) => {
 import { GuardrailError } from "@/lib/agent/guardrails";
 import { claimForEvaluation, createCase, getCase, resetStaleEvaluating, setCaseStatus } from "@/lib/db/repos/cases";
 import { getDonation, recordDonationCapture } from "@/lib/db/repos/donations";
-import { getFund, InsufficientFundsError, releaseFunds, reserveFunds, settlePaid } from "@/lib/db/repos/fund";
+import { getFund, InsufficientFundsError, releaseFunds, reserveFunds, settlePaid, withFundLock } from "@/lib/db/repos/fund";
 import { applyPayoutEvent, createPayoutForCase, getPayout } from "@/lib/db/repos/payouts";
 import { claimWebhookEvent, markWebhookHandled } from "@/lib/db/repos/webhookEvents";
 import { fundBalanceCents, type CaseDoc } from "@/lib/db/types";
@@ -127,6 +127,34 @@ describe("reserve / release / settle", () => {
     expect(c?.status).toBe("paid");
     expect(c?.payoutBatchId).toBe("B1");
     expect(c?.timestamps.paid).toBeInstanceOf(Timestamp);
+  });
+
+  it("parallel reservations (the agent's parallel tool calls) run one at a time and stop at the balance", async () => {
+    await seedFund(100_000);
+    const ids = ["C-1", "C-2", "C-3", "C-4", "C-5"];
+    for (const id of ids) await seedCase(id, { status: "approved" });
+    const results = await Promise.allSettled(ids.map((id) => reserveFunds(id, 25_000, meta)));
+    expect(results.filter((r) => r.status === "fulfilled")).toHaveLength(4);
+    expect(results.filter((r) => r.status === "rejected").map((r) => (r as PromiseRejectedResult).reason)).toEqual([expect.any(InsufficientFundsError)]);
+    expect((await invariantHolds()).reservedCents).toBe(100_000);
+  });
+});
+
+describe("withFundLock", () => {
+  it("starts each fund transaction after the previous one settles, and a failure does not block the queue", async () => {
+    const order: string[] = [];
+    const step = (name: string, ms: number, fail = false) => () =>
+      new Promise<string>((resolve, reject) => {
+        order.push(`start ${name}`);
+        setTimeout(() => {
+          order.push(`end ${name}`);
+          if (fail) reject(new Error(name));
+          else resolve(name);
+        }, ms);
+      });
+    const results = await Promise.allSettled([withFundLock(step("a", 20)), withFundLock(step("b", 5, true)), withFundLock(step("c", 1))]);
+    expect(order).toEqual(["start a", "end a", "start b", "end b", "start c", "end c"]);
+    expect(results.map((r) => r.status)).toEqual(["fulfilled", "rejected", "fulfilled"]);
   });
 });
 

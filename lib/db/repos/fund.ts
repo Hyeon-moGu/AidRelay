@@ -10,6 +10,20 @@ export function fundRef(): DocumentReference {
   return getDb().collection(col.fund).doc(getEnv().FUND_ID);
 }
 
+let fundQueue: Promise<unknown> = Promise.resolve();
+
+/**
+ * Runs fund-document transactions from this process one at a time. Every fund change is a transaction on
+ * the same document; the agent may reserve for several cases in parallel tool calls, and PayPal sends a
+ * batch's SUCCESS webhooks together, so concurrent transactions would contend until Firestore aborts one.
+ * Other processes still contend (rarely), and Firestore's own retries cover that.
+ */
+export function withFundLock<T>(fn: () => Promise<T>): Promise<T> {
+  const run = fundQueue.then(fn, fn);
+  fundQueue = run.catch(() => undefined);
+  return run;
+}
+
 /** Zero-balance fund used until `pnpm seed` writes the real name/policy version. */
 export function defaultFund(): FundDoc {
   const now = Timestamp.now();
@@ -65,7 +79,7 @@ export async function reserveFunds(caseId: string, amountCents: number, meta: Fu
   const db = getDb();
   const fRef = fundRef();
   const cRef = db.collection(col.cases).doc(caseId);
-  return db.runTransaction(async (tx) => {
+  return withFundLock(() => db.runTransaction(async (tx) => {
     const [fSnap, cSnap] = await Promise.all([tx.get(fRef), tx.get(cRef)]);
     if (!cSnap.exists) throw new Error(`case ${caseId} not found`);
     const fund = fSnap.exists ? (fSnap.data() as FundDoc) : defaultFund();
@@ -91,7 +105,7 @@ export async function reserveFunds(caseId: string, amountCents: number, meta: Fu
       reason: meta.reason,
     });
     return { balanceAfterCents: fundBalanceCents({ ...fund, reservedCents }) };
-  });
+  }));
 }
 
 /**
@@ -106,7 +120,7 @@ export async function releaseFunds(
   const db = getDb();
   const fRef = fundRef();
   const cRef = db.collection(col.cases).doc(caseId);
-  return db.runTransaction(async (tx) => {
+  return withFundLock(() => db.runTransaction(async (tx) => {
     const [fSnap, cSnap] = await Promise.all([tx.get(fRef), tx.get(cRef)]);
     if (!cSnap.exists || !fSnap.exists) return { releasedCents: 0 };
     const fund = fSnap.data() as FundDoc;
@@ -129,7 +143,7 @@ export async function releaseFunds(
       reason: meta.reason,
     });
     return { releasedCents };
-  });
+  }));
 }
 
 /**
@@ -140,7 +154,7 @@ export async function reversePaid(caseId: string, amountCents: number, meta: Fun
   const db = getDb();
   const fRef = fundRef();
   const cRef = db.collection(col.cases).doc(caseId);
-  return db.runTransaction(async (tx) => {
+  return withFundLock(() => db.runTransaction(async (tx) => {
     const [fSnap, cSnap] = await Promise.all([tx.get(fRef), tx.get(cRef)]);
     if (!cSnap.exists || !fSnap.exists) throw new Error(`fund or case ${caseId} missing`);
     const fund = fSnap.data() as FundDoc;
@@ -162,7 +176,7 @@ export async function reversePaid(caseId: string, amountCents: number, meta: Fun
       refs: meta.payoutBatchId ? { payoutBatchId: meta.payoutBatchId } : undefined,
     });
     return { changed: true };
-  });
+  }));
 }
 
 /** Moves a case's reservation into paid and marks the case paid. Idempotent once the case is paid. */
@@ -170,7 +184,7 @@ export async function settlePaid(caseId: string, amountCents: number, meta: Fund
   const db = getDb();
   const fRef = fundRef();
   const cRef = db.collection(col.cases).doc(caseId);
-  return db.runTransaction(async (tx) => {
+  return withFundLock(() => db.runTransaction(async (tx) => {
     const [fSnap, cSnap] = await Promise.all([tx.get(fRef), tx.get(cRef)]);
     if (!cSnap.exists || !fSnap.exists) throw new Error(`fund or case ${caseId} missing`);
     const fund = fSnap.data() as FundDoc;
@@ -201,5 +215,5 @@ export async function settlePaid(caseId: string, amountCents: number, meta: Fund
       refs: meta.payoutBatchId ? { payoutBatchId: meta.payoutBatchId } : undefined,
     });
     return { changed: true };
-  });
+  }));
 }

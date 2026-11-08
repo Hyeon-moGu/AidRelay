@@ -2,7 +2,7 @@ import { createHmac } from "node:crypto";
 import { Timestamp } from "firebase-admin/firestore";
 import { col, getDb } from "@/lib/db/firestore";
 import { auditInTx } from "@/lib/db/repos/audit";
-import { defaultFund, fundRef } from "@/lib/db/repos/fund";
+import { defaultFund, fundRef, withFundLock } from "@/lib/db/repos/fund";
 import type { DonationDoc, DonationStatus, FundDoc } from "@/lib/db/types";
 import { getEnv } from "@/lib/env";
 
@@ -76,7 +76,7 @@ export async function recordDonationCapture(input: RecordCaptureInput): Promise<
   const fRef = fundRef();
   const dRef = db.collection(col.donations).doc(input.orderId);
 
-  return db.runTransaction(async (tx) => {
+  return withFundLock(() => db.runTransaction(async (tx) => {
     const [fSnap, dSnap] = await Promise.all([tx.get(fRef), tx.get(dRef)]);
     const fund: FundDoc = fSnap.exists ? (fSnap.data() as FundDoc) : defaultFund();
     const existing = dSnap.exists ? (dSnap.data() as DonationDoc) : undefined;
@@ -120,5 +120,5 @@ export async function recordDonationCapture(input: RecordCaptureInput): Promise<
       refs: { orderId: input.orderId, captureId: input.captureId },
     });
     return { applied: true, raisedCents, donation };
-  });
+  }));
 }
