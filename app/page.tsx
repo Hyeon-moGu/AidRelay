@@ -199,7 +199,7 @@ function Proof({ ledger }: { ledger: Ledger }) {
     { value: moneyWhole(fund.paidCents), label: `paid to ${num(metrics.casesPaid)} households` },
     { value: duration(metrics.medianMinutesToCash), label: "typical time from applying to cash" },
     { value: percent(metrics.autoPaidShare), label: "of families paid without waiting for a volunteer" },
-    { value: num(metrics.duplicatePayouts), label: "households paid twice" },
+    { value: num(metrics.duplicatePayouts), label: "grants paid twice" },
   ];
   return (
     <section aria-label="The fund so far" className="border-t border-border/70">
@@ -211,6 +211,13 @@ function Proof({ ledger }: { ledger: Ledger }) {
           </div>
         ))}
       </dl>
+      <p className="mx-auto max-w-6xl px-4 pb-8 text-[13px] text-muted-foreground sm:px-6">
+        The flood and the applications are a fictional demo scenario. The donations, the AI’s decisions and the payouts are real: live PayPal sandbox
+        and Claude calls, counted from the fund’s records.{" "}
+        <Link href="/ledger#counting" className="font-medium text-primary hover:underline">
+          How the figures are counted
+        </Link>
+      </p>
     </section>
   );
 }

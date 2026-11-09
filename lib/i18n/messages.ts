@@ -46,6 +46,8 @@ export interface Strings {
     /** Shown instead of `consent`, with `demoNotice` on the first step, while the demo operator console is open to look at. */
     consentDemo: string;
     demoNotice: string;
+    /** What a visitor needs to see the whole flow in the demo: the declared area's zip code, a photo, any email. */
+    demoTips: string;
     stepOf: string;
     language: string;
     addPhotos: string;
@@ -75,6 +77,8 @@ export interface Strings {
     paidTitle: string;
     /** "It arrived {duration} after you applied. ..." */
     paidHint: string;
+    /** PayPal holds the payment: the email has no PayPal account yet. */
+    unclaimedHint: string;
     /** Each timeline step once it is done. */
     steps: Record<(typeof TIMELINE)[number], string>;
     /** The current step's label, by case status. */
@@ -117,7 +121,7 @@ const en: Strings = {
     cardTitles: ["You and your home", "Tell us what happened", "Add photos and send"],
     name: "Your name",
     email: "PayPal email",
-    emailHint: "We send the grant to this email through PayPal, so it needs to be the email on your PayPal account.",
+    emailHint: "We send the grant to this email through PayPal. Use the email of your PayPal account to receive it right away.",
     phone: "Phone",
     address: "Street address of the damaged home",
     zip: "Zip code",
@@ -149,6 +153,8 @@ const en: Strings = {
       "This is a demo. What you wrote and your photos can be seen in the fund’s open staff console. Your name, email, phone and address stay hidden there, and only an anonymous one-line summary appears on the public ledger.",
     demoNotice:
       "Demo site: please use a made-up name and story, and no photos of real people. What you write and the photos you add can be seen in the fund’s open staff console. Your name, email, phone and address stay hidden.",
+    demoTips:
+      "To see the whole flow: enter a zip code that starts with 285 (for example 28501), add a photo that shows flood or water damage, and use any email. If that email has no PayPal sandbox account, PayPal holds the payment and the ledger shows it as “On its way”.",
     errors: {
       required: "This field is required.",
       household: "Enter how many people live in your home.",
@@ -178,6 +184,8 @@ const en: Strings = {
     metaTitle: "Your application",
     paidTitle: "{amount} is now in your PayPal account.",
     paidHint: "It arrived {duration} after you applied. We hope it helps you get back on your feet.",
+    unclaimedHint:
+      "PayPal is holding this payment because the email you gave has no PayPal account yet. Open a PayPal account with that email to receive it. If nobody claims it within 30 days, PayPal returns the money to the fund.",
     steps: {
       new: "Application received",
       evaluating: "Reviewed",
@@ -232,7 +240,7 @@ const es: Strings = {
     cardTitles: ["Usted y su hogar", "Cuéntenos qué pasó", "Agregue fotos y envíe"],
     name: "Su nombre",
     email: "Correo de PayPal",
-    emailHint: "Enviamos la ayuda a este correo a través de PayPal, así que debe ser el correo de su cuenta de PayPal.",
+    emailHint: "Enviamos la ayuda a este correo a través de PayPal. Use el correo de su cuenta de PayPal para recibirla de inmediato.",
     phone: "Teléfono",
     address: "Dirección de la vivienda dañada",
     zip: "Código postal",
@@ -264,6 +272,8 @@ const es: Strings = {
       "Esto es una demostración. Lo que escribió y sus fotos se pueden ver en la consola abierta del personal del fondo. Su nombre, correo, teléfono y dirección se mantienen ocultos allí, y en el registro público solo aparece un resumen anónimo de una línea.",
     demoNotice:
       "Sitio de demostración: use un nombre y una historia inventados, y no envíe fotos de personas reales. Lo que escriba y las fotos que agregue se pueden ver en la consola abierta del personal del fondo. Su nombre, correo, teléfono y dirección se mantienen ocultos.",
+    demoTips:
+      "Para ver todo el proceso: escriba un código postal que empiece con 285 (por ejemplo 28501), agregue una foto que muestre daños por la inundación y use cualquier correo. Si ese correo no tiene una cuenta de PayPal de prueba (sandbox), PayPal retiene el pago y el registro lo muestra como “En camino”.",
     errors: {
       required: "Este campo es obligatorio.",
       household: "Indique cuántas personas viven en su hogar.",
@@ -293,6 +303,8 @@ const es: Strings = {
     metaTitle: "Su solicitud",
     paidTitle: "Ya tiene {amount} en su cuenta de PayPal.",
     paidHint: "Llegó {duration} después de su solicitud. Esperamos que le ayude a salir adelante.",
+    unclaimedHint:
+      "PayPal está reteniendo este pago porque el correo que nos dio aún no tiene una cuenta de PayPal. Abra una cuenta de PayPal con ese correo para recibirlo. Si nadie lo reclama en 30 días, PayPal devuelve el dinero al fondo.",
     steps: {
       new: "Solicitud recibida",
       evaluating: "Revisada",

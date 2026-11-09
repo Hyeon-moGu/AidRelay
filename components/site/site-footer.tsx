@@ -18,7 +18,8 @@ export function SiteFooter() {
         <p className="flex items-start gap-2 sm:items-center">
           <BrandMark className="mt-0.5 size-4 sm:mt-0" />
           <span>
-            <span translate="no">AidRelay</span> is a PayPal AI Hackathon project running on the PayPal sandbox, so no real money moves.
+            <span translate="no">AidRelay</span> is a PayPal AI Hackathon project running on the PayPal sandbox, so no real money moves. The flood and the
+            families are fictional.
           </span>
         </p>
         <nav aria-label="Footer" className="grid grid-cols-2 gap-x-4 sm:flex sm:shrink-0 sm:flex-wrap sm:gap-y-1">

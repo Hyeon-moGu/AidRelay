@@ -186,7 +186,12 @@ export function ApplyForm({
           <p className="text-sm font-medium text-primary tabular-nums">{a.stepOf.replace("{n}", String(step + 1)).replace("{total}", "3")}</p>
           <h1 className="text-[1.75rem] leading-tight font-semibold tracking-[-0.02em]">{a.title}</h1>
           {step === 0 && <p className="leading-relaxed text-muted-foreground">{a.intro}</p>}
-          {step === 0 && openConsole && <p className="rounded-lg bg-warning-soft p-3 text-[13px] leading-relaxed text-warning">{a.demoNotice}</p>}
+          {step === 0 && (
+            <div className="space-y-2 rounded-lg bg-warning-soft p-3 text-[13px] leading-relaxed text-warning">
+              {openConsole && <p>{a.demoNotice}</p>}
+              <p>{a.demoTips}</p>
+            </div>
+          )}
           <ol className="grid grid-cols-3 gap-2 pt-2">
             {a.steps.map((s, i) => (
               <li key={s} aria-current={i === step ? "step" : undefined} className="space-y-1.5">

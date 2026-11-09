@@ -127,6 +127,9 @@ export default async function StatusPage({ params, searchParams }: { params: Pro
   // The payout record dates the "Sent through PayPal" step.
   const payout = c.status === "paying" || c.status === "paid" ? await getPayout(c.id) : undefined;
   const paid = c.status === "paid" && amount !== null;
+  // PayPal accepted the payout but the email has no PayPal account: it waits there, and the page says so
+  // instead of "keep an eye on your PayPal account".
+  const unclaimed = c.status === "paying" && payout?.status === "UNCLAIMED";
   const showAmount = ["approved", "parked", "paying"].includes(c.status) && amount !== null;
   const tone = STATUS_TONE[c.status] ?? "wait";
   const received = new Intl.DateTimeFormat(lang === "es" ? "es-US" : "en-US", { dateStyle: "medium" }).format(c.timestamps.created.toDate());
@@ -170,7 +173,7 @@ export default async function StatusPage({ params, searchParams }: { params: Pro
               {paid ? s.paidTitle.replace("{amount}", moneyWhole(amount)) : t.status[c.status]}
             </h2>
             <p className="mt-1 leading-relaxed text-muted-foreground">
-              {paid && minutesToCash !== null ? s.paidHint.replace("{duration}", duration(minutesToCash)) : t.statusHint[c.status]}
+              {paid && minutesToCash !== null ? s.paidHint.replace("{duration}", duration(minutesToCash)) : unclaimed ? s.unclaimedHint : t.statusHint[c.status]}
             </p>
           </div>
         </div>

@@ -7,6 +7,7 @@ import { POLICY } from "@/lib/agent/policy";
 import { duration, moneyWhole, plural } from "@/lib/format";
 import { buildLedger, type Ledger } from "@/lib/ledger/public";
 import { DonateForm } from "./donate-form";
+import { SANDBOX_DONOR } from "@/lib/demo-accounts";
 
 export const metadata: Metadata = { title: "Donate · AidRelay" };
 export const dynamic = "force-dynamic";
@@ -100,9 +101,15 @@ export default async function DonatePage() {
                 </li>
               ))}
             </ul>
-            <p className="max-w-[54ch] rounded-xl bg-muted p-4 text-[13px] leading-relaxed text-muted-foreground">
-              This demo runs on the PayPal sandbox, so no real money moves. Sign in with the sandbox donor account listed in the README.
-            </p>
+            <div className="max-w-[54ch] rounded-xl bg-muted p-4 text-[13px] leading-relaxed text-muted-foreground">
+              <p>This demo runs on the PayPal sandbox, so no real money moves. When the PayPal window opens, sign in with this test donor account:</p>
+              <dl className="mt-2.5 grid grid-cols-[auto_minmax(0,1fr)] gap-x-3 gap-y-1 text-foreground" translate="no">
+                <dt className="text-muted-foreground">Email</dt>
+                <dd className="font-mono text-[12.5px] break-all select-all">{SANDBOX_DONOR.email}</dd>
+                <dt className="text-muted-foreground">Password</dt>
+                <dd className="font-mono text-[12.5px] break-all select-all">{SANDBOX_DONOR.password}</dd>
+              </dl>
+            </div>
           </div>
         </div>
       </main>
