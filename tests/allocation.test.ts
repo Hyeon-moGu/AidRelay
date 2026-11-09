@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { planAllocation, sortByPolicy } from "@/lib/agent/allocation";
+import { planAllocation, sortByPolicy, wouldBePaid } from "@/lib/agent/allocation";
 
 const c = (id: string, tier: number, amountCents: number, createdAtMs: number) => ({ id, tier, amountCents, createdAtMs });
 
@@ -38,6 +38,21 @@ describe("planAllocation", () => {
     const plan = planAllocation([c("big", 4, 55_000, 1), c("small", 2, 25_000, 2)], 30_000);
     expect(plan.pay).toEqual([]);
     expect(plan.park.map((x) => x.id)).toEqual(["big", "small"]);
+  });
+
+  it("a new case does not jump a waiting case ahead of it, and is paid first when it outranks the queue", () => {
+    const waitingTier3 = [c("wait-3", 3, 35_000, 1)];
+    // $300 available, a displaced family waiting for $350: a later $100 case waits behind it.
+    expect(wouldBePaid(c("new-1", 1, 10_000, 5), waitingTier3, 30_000)).toBe(false);
+    // The same tier, applied later: still behind.
+    expect(wouldBePaid(c("new-3", 3, 25_000, 5), waitingTier3, 30_000)).toBe(false);
+    // A higher tier goes first and fits.
+    expect(wouldBePaid(c("new-4", 4, 30_000, 5), waitingTier3, 30_000)).toBe(true);
+    // Enough for both: the waiting case takes its share, the new one fits in what is left.
+    expect(wouldBePaid(c("new-1", 1, 10_000, 5), waitingTier3, 45_000)).toBe(true);
+    // Nobody waiting: it only has to fit the balance.
+    expect(wouldBePaid(c("new-2", 2, 25_000, 5), [], 25_000)).toBe(true);
+    expect(wouldBePaid(c("new-2", 2, 25_000, 5), [], 24_999)).toBe(false);
   });
 
   it("handles an empty queue and a zero balance", () => {

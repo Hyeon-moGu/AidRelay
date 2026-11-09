@@ -4,7 +4,7 @@
 import { FieldValue, Timestamp } from "firebase-admin/firestore";
 import { APICallError, NoObjectGeneratedError, tool, type ToolSet } from "ai";
 import { z } from "zod";
-import { planAllocation, type AllocationCase } from "@/lib/agent/allocation";
+import { planAllocation, wouldBePaid, type AllocationCase } from "@/lib/agent/allocation";
 import { applyCodeRules, countUsableEvidence, decideCase, findDuplicates, loadCaseImages, prescreenPhotos } from "@/lib/agent/evaluate";
 import { assertPayable, autoApproveCheck, decideStatus, GuardrailError, velocityCheck, type AutoApproveLimits } from "@/lib/agent/guardrails";
 import type { Usage } from "@/lib/agent/models";
@@ -210,8 +210,12 @@ export function buildTools(ctx: RunContext): ToolSet {
             }
 
             const amount = decision.recommendedAmountCents;
-            const fund = await getFund();
-            const fundsAvailable = amount !== null && fundBalanceCents(fund) >= amount;
+            // P-8 applies to a new case too: it is paid now only if the plan would pay it once it joins the
+            // cases already waiting. With nobody waiting this is simply "the balance covers the amount".
+            const queue = await loadWaitingQueue();
+            const fundsAvailable =
+              amount !== null &&
+              wouldBePaid({ id: c.id, tier: decision.tier ?? 0, amountCents: amount, createdAtMs: c.timestamps.created.toMillis() }, queue.candidates, queue.queueBalanceCents);
             const velocity = amount === null ? { ok: true as const } : velocityCheck(await recentAutoPayouts(), amount, Date.now(), ctx.limits.velocity);
             const decideCtx = { fundsAvailable, usableEvidence, velocityOk: velocity.ok };
             let next = decideStatus(decision, amount, ctx.limits, decideCtx);
@@ -482,7 +486,8 @@ export interface WaitingPlan {
  * cases to park. The plan_allocation tool and the sweep both use it, so the sweep can tell without a model
  * call whether there is anything to pay.
  */
-export async function planWaitingCases(): Promise<WaitingPlan> {
+/** The cases waiting for money as P-8 sees them, and the balance they share. */
+async function loadWaitingQueue(): Promise<{ fundBalanceCents: number; queueBalanceCents: number; candidates: PlannedCase[]; blocked: WaitingPlan["blocked"] }> {
   const [fund, waiting] = await Promise.all([getFund(), listCases(["approved", "parked"])]);
   const payouts = await Promise.all(waiting.map((c) => getPayout(c.id)));
   // One payout per case (§1.3): a case that already has a payout record cannot be paid again by the agent,
@@ -500,7 +505,14 @@ export async function planWaitingCases(): Promise<WaitingPlan> {
     .map((x) => ({ id: x.c.id, tier: x.c.tier ?? x.c.aiDecision?.tier ?? 0, amountCents: x.amountCents, createdAtMs: x.c.timestamps.created.toMillis(), status: x.c.status }));
   // Already-reserved amounts are available to their own case: count them back into the balance.
   const reservedByOpen = open.reduce((sum, c) => sum + (c.reservedCents ?? 0), 0);
-  const plan = planAllocation(candidates, fundBalanceCents(fund) + reservedByOpen);
+  const balance = fundBalanceCents(fund);
+  return { fundBalanceCents: balance, queueBalanceCents: balance + reservedByOpen, candidates, blocked };
+}
+
+export async function planWaitingCases(): Promise<WaitingPlan> {
+  const queue = await loadWaitingQueue();
+  const { blocked } = queue;
+  const plan = planAllocation(queue.candidates, queue.queueBalanceCents);
   // P-8: a case the money cannot cover waits as `parked`, so the queue and the public ledger show it as
   // waiting for funds (a human-approved case may be parked; it stays approved by its human).
   const parkedNow: string[] = [];
@@ -518,5 +530,5 @@ export async function planWaitingCases(): Promise<WaitingPlan> {
       console.warn(`[tools] could not park ${p.id}:`, err instanceof Error ? err.message : err);
     }
   }
-  return { balanceCents: fundBalanceCents(fund), pay: plan.pay, park: plan.park, parkedNow, blocked, remainingCents: plan.remainingCents };
+  return { balanceCents: queue.fundBalanceCents, pay: plan.pay, park: plan.park, parkedNow, blocked, remainingCents: plan.remainingCents };
 }

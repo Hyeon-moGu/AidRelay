@@ -226,7 +226,7 @@ export function decideStatus(decision: Decision, amountCents: number | null, lim
   if (ctx.velocityOk === false) {
     return { status: "needs_review", clause: "P-10", reason: "automation limit reached; a human must approve" };
   }
-  if (!ctx.fundsAvailable) return { status: "parked", clause: "P-8", reason: "fund balance too low; re-evaluated on the next donation" };
+  if (!ctx.fundsAvailable) return { status: "parked", clause: "P-8", reason: "the balance does not reach this case in policy order; paid when a donation covers it" };
   return { status: "approved", clause: "P-9", reason: "all auto-approve conditions hold" };
 }
 
