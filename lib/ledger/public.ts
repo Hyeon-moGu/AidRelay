@@ -6,7 +6,7 @@ import { listAllCases } from "@/lib/db/repos/cases";
 import { listRecentDonations } from "@/lib/db/repos/donations";
 import { getFund } from "@/lib/db/repos/fund";
 import { fundBalanceCents, type CaseDoc } from "@/lib/db/types";
-import { zipPrefix } from "@/lib/ledger/anonymize";
+import { scrubIdentity, zipPrefix } from "@/lib/ledger/anonymize";
 import { publicSummary } from "@/lib/ledger/labels";
 
 /** Cases that appear as rows: money is committed or waiting. Everything else is counted, not listed. */
@@ -62,7 +62,8 @@ export function toLedgerRow(c: CaseDoc): LedgerRow {
     tier,
     amountCents: amountForCase(c),
     policyAmountCents: isTier(tier) ? maxRecommendedCents(tier, c.householdSize ?? null) : null,
-    summary: publicSummary(c.aiDecision?.ledgerSummary ?? ""),
+    // Scrubbed again on the way out, so a summary stored before the check existed is covered too.
+    summary: publicSummary(scrubIdentity(c.aiDecision?.ledgerSummary ?? "", c.contact)),
     humanReviewed: !!c.humanDecision,
     payoutBatchId: c.payoutBatchId ?? null,
     receivedAt: c.timestamps.created.toDate().toISOString(),

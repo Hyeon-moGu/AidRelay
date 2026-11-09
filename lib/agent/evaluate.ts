@@ -6,7 +6,7 @@ import { isNearDuplicate } from "@/lib/dedupe/phash";
 import { normalizeAddress, normalizeEmail, normalizePhone } from "@/lib/db/repos/cases";
 import type { CaseDoc, DupMatch } from "@/lib/db/types";
 import { MESSAGES, normalizeLang } from "@/lib/i18n/messages";
-import { scrubPii } from "@/lib/ledger/anonymize";
+import { scrubIdentity, scrubPii } from "@/lib/ledger/anonymize";
 import { addUsage, officerModel, prescreenModel, type Usage } from "@/lib/agent/models";
 import { isAmountOutlier, isInsideDeclaredArea, isTier, maxRecommendedCents, POLICY } from "@/lib/agent/policy";
 import { decisionSystem, decisionUserText, policySystemMessage, PRESCREEN_SYSTEM } from "@/lib/agent/prompts";
@@ -269,6 +269,7 @@ export function applyCodeRules(decision: Decision, c: CaseDoc, dupMatches: DupMa
     recommendedAmountCents,
     redFlags: [...flags],
     followUpQuestions,
-    ledgerSummary: scrubSummary(decision.ledgerSummary),
+    // The public line never carries the applicant's own name or street address (policy §7).
+    ledgerSummary: scrubSummary(scrubIdentity(decision.ledgerSummary, c.contact)),
   };
 }
