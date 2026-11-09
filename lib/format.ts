@@ -59,13 +59,15 @@ export function ago(iso: string, now = Date.now()): string {
 /** Minutes as "7 min", "2 h 5 min", "3 d". */
 export function duration(minutes: number | null | undefined): string {
   if (minutes == null) return "–";
-  if (minutes < 60) return `${Math.round(minutes)} min`;
-  if (minutes < 1440) {
-    const h = Math.floor(minutes / 60);
-    const m = Math.round(minutes % 60);
+  // Round once, before splitting into hours: 59.6 is "1 h" and 119.6 is "2 h", never "60 min".
+  const whole = Math.round(minutes);
+  if (whole < 60) return `${whole} min`;
+  if (whole < 1440) {
+    const h = Math.floor(whole / 60);
+    const m = whole % 60;
     return m ? `${h} h ${m} min` : `${h} h`;
   }
-  return `${Math.round(minutes / 1440)} d`;
+  return `${Math.round(whole / 1440)} d`;
 }
 
 export function plural(n: number, one: string, many: string): string {
