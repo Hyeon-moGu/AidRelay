@@ -1,7 +1,7 @@
 // Public transparency ledger: what the fund raised and paid, how fast and how safely, and an AG Studio report
 // (grants by need, who approved, every grant and donation). The plain tables are the fallback if AG Studio
 // cannot load. The rules the agent follows live on /policy.
-import { ArrowRight, ArrowUpRight, Scale } from "lucide-react";
+import { ArrowRight, ArrowUpRight, ChevronDown, Scale } from "lucide-react";
 import type { Metadata } from "next";
 import Link from "next/link";
 import { FundFlow } from "@/components/fund-flow";
@@ -74,11 +74,12 @@ export default async function LedgerPage() {
                   Fast, and still careful
                 </h2>
                 <dl className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-                  <Metric label="Typical time to cash" value={duration(ledger.metrics.medianMinutesToCash)} sub="from applying to money in the family’s PayPal account" />
+                  <Metric label="Typical time to cash" value={duration(ledger.metrics.medianMinutesToCash)} sub="from applying to money in the family’s PayPal account, any wait for donations included" />
                   <Metric label="Paid without waiting for a volunteer" value={percent(ledger.metrics.autoPaidShare)} sub="small, clear cases inside the fund’s limits" />
-                  <Metric label="Households paid twice" value={num(ledger.metrics.duplicatePayouts)} sub="PayPal itself refuses a second payout for the same case" />
+                  <Metric label="Grants paid twice" value={num(ledger.metrics.duplicatePayouts)} sub="one PayPal payout per grant; PayPal refuses a repeat" />
                   <Metric label="Backed by a PayPal record" value={percent(ledger.metrics.paidWithBatchIdShare)} sub="every payment carries its PayPal payout id" />
                 </dl>
+                <Counting ledger={ledger} />
               </section>
 
               <section aria-labelledby="rules" className="flex flex-col gap-5 rounded-2xl bg-accent/60 p-6 sm:flex-row sm:items-center sm:justify-between sm:p-8">
@@ -221,6 +222,56 @@ function Money({ label, cents, sub, hero, dot }: { label: string; cents: number;
       <dd className={`mt-1 font-semibold tracking-[-0.03em] tabular-nums ${hero ? "text-4xl sm:text-5xl" : "text-3xl sm:text-4xl"}`}>{moneyWhole(cents)}</dd>
       {sub && <dd className="mt-1.5 text-[13px] text-muted-foreground">{sub}</dd>}
     </div>
+  );
+}
+
+/** What each published number counts, in the reader's words, with the counts behind the percentages. */
+function Counting({ ledger }: { ledger: Ledger }) {
+  const m = ledger.metrics;
+  const grants = plural(m.casesPaid, "paid grant", "paid grants");
+  const alone = Math.round((m.autoPaidShare ?? 0) * m.casesPaid);
+  const withId = Math.round((m.paidWithBatchIdShare ?? 0) * m.casesPaid);
+  return (
+    <details id="counting" open className="group scroll-mt-20 rounded-2xl border border-border bg-card">
+      <summary className="flex cursor-pointer list-none items-center justify-between gap-4 p-5 [&::-webkit-details-marker]:hidden">
+        <span>
+          <span className="block text-[15px] font-medium">How these numbers are counted</span>
+          <span className="mt-0.5 block text-[13px] text-muted-foreground">
+            Worked out from the fund’s own records every time this page loads. The flood and the applications are a fictional demo scenario; the donations,
+            the decisions and the payouts are real PayPal sandbox and AI calls, and nothing is typed in by hand.
+          </span>
+        </span>
+        <ChevronDown aria-hidden="true" className="size-5 shrink-0 text-muted-foreground transition-transform duration-200 group-open:rotate-180" />
+      </summary>
+      <dl className="grid gap-x-8 gap-y-4 border-t border-border p-5 text-sm leading-relaxed sm:grid-cols-2">
+        <div>
+          <dt className="font-medium">Typical time to cash</dt>
+          <dd className="mt-1 text-muted-foreground">
+            The median over the {grants}: from the moment an application was received to PayPal confirming the payout. Half were faster, half slower. It includes
+            any time a family waited for a donation or for a volunteer.
+          </dd>
+        </div>
+        <div>
+          <dt className="font-medium">Paid without waiting for a volunteer</dt>
+          <dd className="mt-1 text-muted-foreground">
+            {num(alone)} of the {grants} were approved by the AI case officer alone. The others were approved by a volunteer first.
+          </dd>
+        </div>
+        <div>
+          <dt className="font-medium">Grants paid twice</dt>
+          <dd className="mt-1 text-muted-foreground">
+            The number of PayPal payout ids that appear on more than one grant. Each grant goes to PayPal under one id of its own, and PayPal refuses a second
+            request with the same id.
+          </dd>
+        </div>
+        <div>
+          <dt className="font-medium">Backed by a PayPal record</dt>
+          <dd className="mt-1 text-muted-foreground">
+            {num(withId)} of the {grants} carry the payout id PayPal returned. The id is in the table above and in the JSON linked at the top of this page.
+          </dd>
+        </div>
+      </dl>
+    </details>
   );
 }
 

@@ -211,12 +211,14 @@
     radial-gradient(40rem 22rem at -6% 0%, color-mix(in srgb, var(--bar-paid) 9%, transparent), transparent 70%);
 }
 
-/* The ledger's AG Studio report: room inside each card (Studio's own padding param is the gap between cards). */
+/* The ledger's AG Studio report: room inside each card (Studio's own padding param is the gap between cards).
+   Studio positions a widget's content absolutely over its body, so the room is set as an inset on the content
+   (padding on the body has no effect). Text inside starts 8px in, which lines it up with the card title. */
 .ledger-report .ag-studio-layout-widget-header {
-  margin: 16px 18px 6px;
+  margin: 18px 22px 10px;
 }
-.ledger-report .ag-studio-layout-widget-body {
-  padding: 0 10px 10px;
+.ledger-report .ag-studio-layout-widget-content {
+  inset: 0 14px 14px;
 }
 /* Equal-width digits: amounts line up, and every case id measures the same when columns autosize. */
 .ledger-report .ag-cell {
