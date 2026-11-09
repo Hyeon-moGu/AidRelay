@@ -71,3 +71,13 @@ describe("scrubPii", () => {
     expect(scrubPii("call me at 5551234 after six")).not.toContain("5551234");
   });
 });
+
+describe("small display and scrubbing edges", () => {
+  it("a phone number in parentheses goes whole, the opening parenthesis included", () => {
+    expect(scrubPii("call (555) 123-4567 tonight")).toBe("call [redacted] tonight");
+  });
+  it("a US date stays, a phone number written the same length goes", () => {
+    expect(scrubPii("Flooded on 11-01-2026, two days later")).toContain("11-01-2026");
+    expect(scrubPii("call 828-555-0101")).not.toContain("555");
+  });
+});

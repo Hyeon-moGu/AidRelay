@@ -16,9 +16,10 @@ export const NEED_LABEL: Record<number, string> = {
  */
 export function publicSummary(summary: string): string {
   return summary
-    .replace(/[\s,;.]*\(?\btier\s*\d\)?\.?/gi, "")
+    .replace(/[\s,;.]*\(?\btier\s*\d\)?[.:]?/gi, "")
     .replace(/\s{2,}/g, " ")
     .trim()
+    .replace(/^[,;:.]\s*/, "")
     .replace(/[,;]$/, ".");
 }
 

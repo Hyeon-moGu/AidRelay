@@ -16,4 +16,8 @@ describe("duration", () => {
     expect(duration(90)).toBe("1 h 30 min");
     expect(duration(null)).toBe("–");
   });
+  it("shows a dash for a value that is not a number, and never a negative time", () => {
+    expect(duration(Number.NaN)).toBe("–");
+    expect(duration(-3)).toBe("0 min");
+  });
 });

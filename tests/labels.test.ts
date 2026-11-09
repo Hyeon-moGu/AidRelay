@@ -2,6 +2,10 @@ import { describe, expect, it } from "vitest";
 import { publicSummary } from "@/lib/ledger/labels";
 
 describe("publicSummary", () => {
+  it("leaves no stray colon when the line opens with the tier", () => {
+    expect(publicSummary("Tier 2: home flooded, household of 3")).toBe("home flooded, household of 3");
+  });
+
   it("drops tier numbers the model appends, wherever they sit", () => {
     expect(publicSummary("Flood water reached window level; household of 2 displaced, belongings destroyed. Tier 3.")).toBe(
       "Flood water reached window level; household of 2 displaced, belongings destroyed",

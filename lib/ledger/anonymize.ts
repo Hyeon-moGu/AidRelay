@@ -38,11 +38,23 @@ function walk(value: unknown): unknown {
 
 /** Redacts anything that looks like an email address or a phone number from free text the agent writes. */
 export function scrubPii(text: string): string {
-  return text.replace(/[\w.+-]+@[\w-]+\.[\w.-]+/g, "[redacted]").replace(/\+?\d[\d\s().-]{5,}\d/g, redactPhoneMatch);
+  return text.replace(/[\w.+-]+@[\w-]+\.[\w.-]+/g, "[redacted]").replace(/\(?\+?\d[\d\s().-]{5,}\d/g, redactPhoneMatch);
 }
 
-const HEALTH_RE =
-  /\b(?:asthma\w*|nebuli[sz]ers?|inhalers?|meds|medic(?:al|ations?|ines?)|prescriptions?|insulin|oxygen|dialysis|diabet\w*|pregnan\w*|disab\w*|wheelchairs?|hospital\w*|illness\w*|sick\w*|injur\w*|cpap|chemo\w*|cancer|health)\b/i;
+// English and Spanish: the summary is meant to be English, but nothing forces the model to write it so.
+const HEALTH_RE = new RegExp(
+  [
+    "asthma\\p{L}*|nebuli[sz]ers?|inhalers?|meds|medic(?:al|ally|ations?|ines?)|prescriptions?|pills?|insulin|oxygen|dialysis",
+    "diabet\\p{L}*|pregnan\\p{L}*|disab\\p{L}*|wheelchairs?|hospital\\p{L}*|illness\\p{L}*|sick\\p{L}*|injur\\p{L}*|cpap|chemo\\p{L}*|cancer|health",
+    "ventilators?|pacemakers?|dementia|alzheimer\\p{L}*|autis\\p{L}*|blind|deaf|nicu|seizures?|epilep\\p{L}*|heart (?:condition|disease|problems?)",
+    "mental|depress\\p{L}*|anxiety|ptsd|therapy",
+    "asma|medicaci\\p{L}*|medicin\\p{L}*|medicament\\p{L}*|pastillas|insulina|ox[ií]geno|di[aá]lisis|embaraz\\p{L}*|discapacid\\p{L}*|silla de ruedas|enferm\\p{L}*|salud",
+  ]
+    .map((alternatives) => `(?:${alternatives})`)
+    .join("|"),
+  "u",
+);
+const HEALTH_WORD_RE = new RegExp(`(?<![\\p{L}\\d])(?:${HEALTH_RE.source})(?![\\p{L}\\d])`, "iu");
 
 /**
  * The public line says nothing about anyone's health (policy §7). The prompt asks for that; this holds it in
@@ -50,16 +62,18 @@ const HEALTH_RE =
  * ("family of 5 displaced to motel, child with asthma lost meds" keeps "family of 5 displaced to motel").
  */
 export function scrubHealth(text: string): string {
-  if (!HEALTH_RE.test(text)) return text;
+  if (!HEALTH_WORD_RE.test(text)) return text;
   return text
     .split(/(?<=[,;.])\s+/)
-    .filter((part) => !HEALTH_RE.test(part))
+    .filter((part) => !HEALTH_WORD_RE.test(part))
     .join(" ")
     .replace(/[\s,;]+$/, "")
     .trim();
 }
 
 const ISO_DATE_RE = /^(?:19|20)\d{2}-\d{2}-\d{2}/;
+/** "11-01-2026" or "11.01.2026", alone: a date, not a phone number. */
+const US_DATE_RE = /^(?:0?[1-9]|1[0-2])[-.](?:0?[1-9]|[12]\d|3[01])[-.](?:19|20)\d{2}$/;
 
 /**
  * Replacement for a phone-shaped match. A phone number has at least seven digits ("5551234" included); fewer
@@ -68,6 +82,7 @@ const ISO_DATE_RE = /^(?:19|20)\d{2}-\d{2}-\d{2}/;
  */
 export function redactPhoneMatch(match: string): string {
   if ((match.match(/\d/g)?.length ?? 0) < 7) return match;
+  if (US_DATE_RE.test(match)) return match;
   const open = match.startsWith("(") ? "(" : "";
   const date = match.slice(open.length).match(ISO_DATE_RE)?.[0];
   if (!date) return "[redacted]";
@@ -90,7 +105,18 @@ const SENTENCE_START_RE = /(?:^|[.!?;:]\s+|[\n"“(])\s*$/;
 const escapeRe = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 /** Whole-word match on letters and digits in any script (\b only knows ASCII). */
 const word = (pattern: string, flags: string) => new RegExp(`(?<![\\p{L}\\d])${pattern}(?![\\p{L}\\d])`, `${flags}u`);
-const phrase = (words: string[]) => words.map(escapeRe).join("\\s+");
+/** Letters an applicant's name may carry with or without its accent ("María López" is also "Maria Lopez"). */
+const ACCENTED: Record<string, string> = { a: "aáàâäãåā", e: "eéèêëē", i: "iíìîïī", o: "oóòôöõøō", u: "uúùûüū", n: "nñ", c: "cç", y: "yýÿ" };
+/** An escaped pattern for `s` that matches it with or without accents, in the case it is written in. */
+const loose = (s: string) =>
+  [...s.normalize("NFD").replace(/\p{M}/gu, "")]
+    .map((ch) => {
+      const set = ACCENTED[ch.toLowerCase()];
+      if (!set) return escapeRe(ch);
+      return `[${ch === ch.toLowerCase() ? set : set.toUpperCase()}]`;
+    })
+    .join("");
+const phrase = (words: string[]) => words.map(loose).join("\\s+");
 
 /**
  * Removes the applicant's own name and street address from text meant for the public ledger. The model is
@@ -123,7 +149,7 @@ function scrubName(text: string, name: string): string {
     const short = letters.length < 3;
     const givenName = index === 0 && parts.length > 1 && !short;
     for (const variant of short ? [capitalized] : [capitalized, letters.toUpperCase()]) {
-      out = out.replace(word(escapeRe(variant), "g"), (match: string, offset: number, whole: string) => {
+      out = out.replace(word(loose(variant), "g"), (match: string, offset: number, whole: string) => {
         if (givenName || !SENTENCE_START_RE.test(whole.slice(0, offset))) return REDACTED;
         return NAME_CONTEXT_RE.test(whole.slice(offset + match.length)) ? REDACTED : match;
       });

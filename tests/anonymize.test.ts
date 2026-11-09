@@ -1,5 +1,7 @@
+import { Timestamp } from "firebase-admin/firestore";
 import { describe, expect, it } from "vitest";
 import { scrubHealth, scrubIdentity, stripPii, zipPrefix } from "@/lib/ledger/anonymize";
+import { toLedgerRow } from "@/lib/ledger/public";
 
 describe("stripPii", () => {
   it("drops payer and contact fields at any depth, keeps money and ids", () => {
@@ -93,12 +95,25 @@ describe("zipPrefix", () => {
   });
 });
 
+describe("scrubIdentity with or without accents", () => {
+  it("removes a name written without the accents the applicant used, and the other way round", () => {
+    const contact = { name: "María López", address: "12 Calle Río, Cedar Falls" };
+    expect(scrubIdentity("Maria Lopez's kitchen flooded", contact)).not.toMatch(/Maria|Lopez/);
+    expect(scrubIdentity("Water reached 12 Calle Rio", contact)).not.toMatch(/12 Calle/);
+    expect(scrubIdentity("Daniel Pérez wrote", { name: "Daniel Perez" })).not.toMatch(/Daniel|Pérez/);
+  });
+});
+
 describe("scrubHealth (nothing about anyone's health on the public line, policy §7)", () => {
   it("drops the part of the line that names a condition, a medicine or a device, and keeps the rest", () => {
     expect(scrubHealth("Rental flooded ~2 ft, family of 5 displaced to motel, child with asthma lost meds and nebulizer")).toBe(
       "Rental flooded ~2 ft, family of 5 displaced to motel",
     );
     expect(scrubHealth("Displaced; grandmother on oxygen; household of 4")).toBe("Displaced; household of 4");
+  });
+  it("catches Spanish terms written with their accents", () => {
+    expect(scrubHealth("Casa inundada, perdimos la medicación del niño")).toBe("Casa inundada");
+    expect(scrubHealth("Desplazados; trabajo de enfermería perdido; hogar de 4")).toBe("Desplazados; hogar de 4");
   });
   it("leaves a line without health details exactly as it was, decimals included", () => {
     const line = "Kitchen flooded ~2.5 ft, food and washer lost, home still habitable. Household of 3";
@@ -107,9 +122,7 @@ describe("scrubHealth (nothing about anyone's health on the public line, policy 
 });
 
 describe("the public ledger line when scrubHealth leaves nothing", () => {
-  it("still says what happened instead of an empty cell", async () => {
-    const { Timestamp } = await import("firebase-admin/firestore");
-    const { toLedgerRow } = await import("@/lib/ledger/public");
+  it("still says what happened instead of an empty cell", () => {
     const row = toLedgerRow({
       id: "C-090",
       token: "t".repeat(32),

@@ -58,9 +58,9 @@ export function ago(iso: string, now = Date.now()): string {
 
 /** Minutes as "7 min", "2 h 5 min", "3 d". */
 export function duration(minutes: number | null | undefined): string {
-  if (minutes == null) return "–";
+  if (minutes == null || !Number.isFinite(minutes)) return "–";
   // Round once, before splitting into hours: 59.6 is "1 h" and 119.6 is "2 h", never "60 min".
-  const whole = Math.round(minutes);
+  const whole = Math.max(0, Math.round(minutes));
   if (whole < 60) return `${whole} min`;
   if (whole < 1440) {
     const h = Math.floor(whole / 60);
