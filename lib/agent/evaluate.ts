@@ -66,6 +66,27 @@ export function findDuplicates(c: CaseDoc, others: readonly CaseDoc[]): DupMatch
   return matches;
 }
 
+type CaseFiles = Pick<CaseDoc, "photos" | "docs" | "photoHashes">;
+
+/**
+ * The two files behind a photo match (P-4): this case's and the earlier case's, so a volunteer can look at
+ * them side by side. `photoHashes` follows [...photos, ...docs]; when a case's lists do not line up, no
+ * pair is returned rather than a wrong one.
+ */
+export function matchingPhotoPair(c: CaseFiles, other: CaseFiles): { thisPath: string; otherPath: string } | null {
+  const mine = [...c.photos, ...c.docs];
+  const theirs = [...other.photos, ...other.docs];
+  const myHashes = c.photoHashes ?? [];
+  const theirHashes = other.photoHashes ?? [];
+  if (myHashes.length !== mine.length || theirHashes.length !== theirs.length) return null;
+  for (let i = 0; i < myHashes.length; i++) {
+    for (let j = 0; j < theirHashes.length; j++) {
+      if (isNearDuplicate(myHashes[i], theirHashes[j])) return { thisPath: mine[i], otherPath: theirs[j] };
+    }
+  }
+  return null;
+}
+
 /**
  * Prompt-injection heuristics for the applicant narrative (English and Spanish). Real applicants describe
  * damage; they do not address "the system", quote policy clause ids, or set their own confidence.

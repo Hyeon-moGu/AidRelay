@@ -128,6 +128,8 @@ export async function submitReply(token: string, text: string, photos: UploadedF
   const storedDocs = await storeImages(docImages, (i) => caseDocPath(c.id, i), c.docs.length + 1);
   const stamp = new Date().toISOString().slice(0, 10);
   const narrative = text ? `${c.narrative}\n\n[Update ${stamp}] ${text}` : c.narrative;
+  // photoHashes follows [...photos, ...docs]: the new photos go after the old photos, not after the old documents.
+  const oldHashes = c.photoHashes ?? [];
 
   await updateCase(
     c.id,
@@ -135,7 +137,7 @@ export async function submitReply(token: string, text: string, photos: UploadedF
       narrative,
       photos: [...c.photos, ...stored.paths],
       docs: [...c.docs, ...storedDocs.paths],
-      photoHashes: [...(c.photoHashes ?? []), ...stored.hashes, ...storedDocs.hashes],
+      photoHashes: [...oldHashes.slice(0, c.photos.length), ...stored.hashes, ...oldHashes.slice(c.photos.length), ...storedDocs.hashes],
       notes: [...(c.notes ?? []), { by: "system", text: `applicant replied (${photos.length} photo(s), ${docs.length} document(s), ${text.length} chars)`, at: Timestamp.now() }],
     },
     { actor: "system", action: "case.applicant_replied", reason: "applicant answered the follow-up" },

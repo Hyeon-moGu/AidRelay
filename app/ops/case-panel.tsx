@@ -1,7 +1,7 @@
 "use client";
 
 // Side panel: the photos, the applicant's story, the AI decision with its clauses, and the audit trail.
-import { Lock, X } from "lucide-react";
+import { Images, Lock, X } from "lucide-react";
 import { Chip, StatusBadge } from "@/components/status-badge";
 import { clock, money } from "@/lib/format";
 import type { Decision } from "@/lib/agent/schema";
@@ -33,6 +33,8 @@ export interface CaseDetail {
     photoUrls: string[];
     docUrls: string[];
   };
+  /** P-4 photo matches: the file in this case and the same photo in the earlier case. */
+  dupPhotos?: Array<{ caseId: string; thisUrl: string; otherUrl: string }>;
   payout: { status: string; outcome: string; batchStatus?: string; payoutBatchId?: string; amountCents: number; error?: string; events: Array<{ type: string; status?: string; source: string; at: string }> } | null;
   audit: Array<{ actor: string; action: string; policyClause?: string; reason: string; ts: string }>;
 }
@@ -126,6 +128,34 @@ export function CasePanel({ detail, onClose }: { detail: CaseDetail | null; onCl
           ))}
         </div>
       )}
+
+      {detail.dupPhotos?.map((d) => (
+        <section key={d.caseId} aria-label={`Photo also used in case ${d.caseId}`} className="rounded-lg border border-danger/30 bg-danger-soft/60 p-3">
+          <p className="flex items-center gap-1.5 text-xs font-medium text-danger">
+            <Images aria-hidden="true" className="size-3.5" />
+            Same photo as an earlier application
+            <Chip tone="accent" mono className="ml-auto">
+              P-4
+            </Chip>
+          </p>
+          <div className="mt-2 grid grid-cols-2 gap-2">
+            {(
+              [
+                [d.thisUrl, `This case, ${c.id}`],
+                [d.otherUrl, `${d.caseId}, applied earlier`],
+              ] as const
+            ).map(([url, caption]) => (
+              <figure key={url} className="min-w-0">
+                <a href={url} target="_blank" rel="noreferrer" className="block overflow-hidden rounded-md border border-border bg-card">
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img src={url} alt={caption} width={170} height={112} loading="lazy" className="h-28 w-full object-cover" />
+                </a>
+                <figcaption className="mt-1 truncate text-[11px] text-muted-foreground">{caption}</figcaption>
+              </figure>
+            ))}
+          </div>
+        </section>
+      ))}
 
       <div className="space-y-1.5">
         <p className="text-xs font-medium text-muted-foreground">Applicant’s words, treated as untrusted data</p>

@@ -5,6 +5,7 @@ import {
   countUsableEvidence,
   detectInstructionInjection,
   findDuplicates,
+  matchingPhotoPair,
   normalizeClause,
   normalizeDecision,
   scrubSummary,
@@ -192,6 +193,14 @@ describe("findDuplicates (P-4), only against earlier applications", () => {
 
   it("does not flag the earlier C-003 because a copy arrived later (its expected reason stays 'over the limit')", () => {
     expect(findDuplicates(c003, [c001, c003, c009])).toEqual([]);
+  });
+
+  it("names the two files behind a photo match, and none when a case's hash list does not line up with its files", () => {
+    const earlier = { photos: ["cases/C-003/photo-1.jpg", "cases/C-003/photo-2.jpg"], docs: [], photoHashes: ["ff00ff00ff00ff00", "00ff00ff00ff00ff"] };
+    const later = { photos: ["cases/C-009/photo-1.jpg"], docs: ["cases/C-009/doc-1.jpg"], photoHashes: ["0f0f0f0f0f0f0f0f", "00ff00ff00ff00fe"] };
+    expect(matchingPhotoPair(later, earlier)).toEqual({ thisPath: "cases/C-009/doc-1.jpg", otherPath: "cases/C-003/photo-2.jpg" });
+    expect(matchingPhotoPair({ ...later, photoHashes: ["00ff00ff00ff00fe"] }, earlier)).toBeNull();
+    expect(matchingPhotoPair({ photos: ["cases/C-001/photo-1.jpg"], docs: [], photoHashes: ["f0f0f0f0f0f0f0f0"] }, earlier)).toBeNull();
   });
 
   it("leaves distinct households alone and matches a reused phone number as a contact duplicate", () => {

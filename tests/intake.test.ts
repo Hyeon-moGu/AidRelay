@@ -138,6 +138,17 @@ describe("submitReply", () => {
     expect(enqueueAgentRun).toHaveBeenCalledWith({ trigger: "case.created", caseId: before.id });
   });
 
+  it("keeps the photo hashes in the order of the files: photos first, then documents", async () => {
+    const before = await waitingCase();
+    await db.collection("cases").doc(before.id).update({ docs: ["cases/C-REPLY/doc-1.jpg"], photoHashes: ["00000000000000ff", "ffffffff00000000"] });
+    await submitReply(before.token, "", [file("more.jpg", "image/jpeg", await picture("jpeg"))], []);
+    const stored = db.read("cases", before.id) as { photos: string[]; docs: string[]; photoHashes: string[] };
+    expect(stored.photos).toEqual(["cases/C-REPLY/photo-1.jpg", "cases/C-REPLY/photo-2.jpg"]);
+    expect(stored.photoHashes).toHaveLength(3);
+    expect(stored.photoHashes[0]).toBe("00000000000000ff");
+    expect(stored.photoHashes[2]).toBe("ffffffff00000000");
+  });
+
   it("records what it cleared in the audit trail without writing a delete marker there", async () => {
     const before = await waitingCase();
     await submitReply(before.token, "Answer.", [], []);
