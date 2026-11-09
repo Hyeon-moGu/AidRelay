@@ -18,7 +18,7 @@ vi.mock("@/lib/agent/trigger", async (importOriginal) => {
 import { enqueueAgentRun } from "@/lib/agent/trigger";
 import { createCase, getCase, setCaseStatus } from "@/lib/db/repos/cases";
 import { getFund, reserveFunds } from "@/lib/db/repos/fund";
-import type { CaseDoc } from "@/lib/db/types";
+import { amountForCase, type CaseDoc } from "@/lib/db/types";
 import { applyHumanDecision } from "@/lib/ops/decide";
 
 let db: FakeFirestore;
@@ -75,6 +75,16 @@ describe("applyHumanDecision", () => {
     await db.collection("cases").doc("C-A").update({ status: "evaluating" });
     const evaluated = await setCaseStatus("C-A", "needs_review", { actor: "agent", action: "case.evaluated", reason: "red flags", policyClause: "P-4" });
     expect(evaluated.status).toBe("needs_review");
+  });
+
+  it("reopen gives the case back the agent's amount, not the one the volunteer had set", async () => {
+    await seedCase("C-A");
+    await applyHumanDecision({ action: "approve", caseIds: ["C-A"], amounts: { "C-A": 120_000 } });
+    expect(amountForCase((await getCase("C-A"))!)).toBe(120_000);
+    await applyHumanDecision({ action: "reopen", caseIds: ["C-A"] });
+    const c = (await getCase("C-A"))!;
+    expect(c.humanDecision).toBeUndefined();
+    expect(amountForCase(c)).toBe(35_000);
   });
 
   it("reopen hands the reservation back to the fund", async () => {

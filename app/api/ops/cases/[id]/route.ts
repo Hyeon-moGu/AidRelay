@@ -44,8 +44,9 @@ export async function GET(_req: Request, ctx: { params: Promise<{ id: string }> 
             createdAt: payout.createdAt.toDate().toISOString(),
             updatedAt: payout.updatedAt.toDate().toISOString(),
             events: payout.events.map((e) => ({ ...e, at: e.at.toDate().toISOString() })),
-            // PayPal did not accept it, or never answered: the panel offers to send it again.
-            retryable: payoutIsRetryable(payout),
+            // PayPal did not accept it, or never answered, and the case still waits for it: the panel offers
+            // to send it again. (After a refusal the case is back at `approved`; with no answer it is still `paying`.)
+            retryable: payoutIsRetryable(payout) && c.status === (payout.status === "create_failed" ? "approved" : "paying"),
           }
         : null,
       audit: audit.map((a) => ({ ...a, ts: a.ts.toDate().toISOString() })),

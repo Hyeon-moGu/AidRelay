@@ -64,7 +64,9 @@ export async function applyHumanDecision(req: DecisionRequest): Promise<{ result
             caseId,
             "approved",
             { actor: OPS_ACTOR, action: "case.human_approved", policyClause: "human decision", reason: req.note ? scrubPii(req.note) : `approved by operator for ${amountCents} cents` },
-            { humanDecision, approvedAmountCents: amountCents },
+            // The amount lives on the decision only: `approvedAmountCents` stays the agent's own figure, so
+            // a reopen that withdraws the decision gives the case back the policy amount.
+            { humanDecision },
           );
           approved++;
           results.push({ caseId, ok: true, status: updated.status, amountCents });

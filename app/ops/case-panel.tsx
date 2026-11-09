@@ -233,8 +233,8 @@ export function CasePanel({
         <div className="rounded-lg border border-danger/30 bg-danger-soft/60 p-3 text-[13px]">
           <p className="font-medium text-danger">{detail.payout.status === "create_failed" ? "PayPal did not accept this payout" : "PayPal never answered for this payout"}</p>
           <p className="mt-1 leading-relaxed text-muted-foreground">
-            {money(detail.payout.amountCents)} is still reserved for this case. Sending it again repeats the same request with the same PayPal batch id, so the
-            family cannot be paid twice.
+            {c.reservedCents ? `${money(c.reservedCents)} is still reserved for this case. ` : ""}
+            Sending it again repeats the same payout with the same PayPal batch id, so the family cannot be paid twice.
           </p>
           <Button size="sm" className="mt-2.5" disabled={retrying} onClick={() => onRetryPayout(c.id)}>
             {retrying ? <LoaderCircle aria-hidden="true" className="animate-spin" /> : <RotateCw aria-hidden="true" />}
