@@ -70,7 +70,7 @@ export function ActivityFeed({ runs }: { runs: OpsRun[] }) {
             )}
             {r.cost && (
               <p className="mt-2 text-[11px] text-muted-foreground tabular-nums">
-                {r.cost.modelCalls === 0 ? (
+                {r.cost.modelCalls === 0 && r.status === "done" ? (
                   "Settled in code, no model call"
                 ) : (
                   <>

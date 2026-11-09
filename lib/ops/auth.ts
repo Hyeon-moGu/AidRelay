@@ -1,7 +1,7 @@
 // Operator console authentication: one shared password (ADMIN_PASSWORD), a signed cookie, no accounts.
 // Multi-user auth is out of scope for the demo; every human action is still audited as `human:ops`.
 // In the demo the console may also be open to look at (OPS_PUBLIC_VIEW); acting always needs the session.
-import { createHmac, timingSafeEqual } from "node:crypto";
+import { createHash, createHmac, timingSafeEqual } from "node:crypto";
 import { cookies } from "next/headers";
 import { getEnv } from "@/lib/env";
 import type { AuditActor } from "@/lib/db/types";
@@ -30,9 +30,10 @@ export function verifySessionValue(value: string | undefined, now = Date.now()):
 }
 
 export function passwordMatches(given: string): boolean {
-  const a = Buffer.from(given);
-  const b = Buffer.from(getEnv().ADMIN_PASSWORD);
-  return a.length === b.length && timingSafeEqual(a, b);
+  // Hashing both first gives equal lengths, so neither the comparison nor an early return tells the length.
+  const a = createHash("sha256").update(given).digest();
+  const b = createHash("sha256").update(getEnv().ADMIN_PASSWORD).digest();
+  return timingSafeEqual(a, b);
 }
 
 /** True when the request carries a valid operator session cookie. */

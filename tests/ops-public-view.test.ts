@@ -43,6 +43,7 @@ import { enqueueAgentRun } from "@/lib/agent/trigger";
 import { createCase } from "@/lib/db/repos/cases";
 import { getFund } from "@/lib/db/repos/fund";
 import { makeSessionValue, opsAccess } from "@/lib/ops/auth";
+import { downloadObject } from "@/lib/storage/gcs";
 import { clearSharedForViewers, scrubContactText, sharedForViewers, viewerDetail, viewerRow, viewerRun } from "@/lib/ops/public-view";
 import type { CaseDetail, OpsRow, OpsRun } from "@/lib/ops/rows";
 
@@ -146,6 +147,20 @@ describe("who may look and who may act", () => {
     expect(enqueueAgentRun).not.toHaveBeenCalled();
   });
 
+  it("a visitor is refused an applicant's document (proof of address), which a signed-in volunteer can open", async () => {
+    const doc = () => getPhoto(new Request(`http://localhost/api/ops/photo?path=${encodeURIComponent("cases/C-OPEN/doc-1.jpg")}`));
+    expect((await doc()).status).toBe(403);
+    state.cookie = makeSessionValue();
+    expect((await doc()).status).toBe(200);
+    state.cookie = undefined;
+  });
+
+  it("answers 404, not 500, for a well-formed path to a file that does not exist", async () => {
+    vi.mocked(downloadObject).mockRejectedValueOnce(Object.assign(new Error("No such object"), { code: 404 }));
+    const res = await getPhoto(new Request("http://localhost/api/ops/photo?path=cases%2FC-OPEN%2Fphoto-9.jpg"));
+    expect(res.status).toBe(404);
+  });
+
   it("a visitor cannot use the photo route to read anything but a case photo", async () => {
     for (const path of ["cases/C-OPEN/../../secrets.json", "seed/accounts.json", "cases/C-OPEN/photo-1.png", ""]) {
       const res = await getPhoto(new Request(`http://localhost/api/ops/photo?path=${encodeURIComponent(path)}`));
@@ -243,6 +258,37 @@ describe("viewerDetail", () => {
       payout: { status: "create_failed", outcome: "pending", amountCents: 25_000, recipientEmail: EMAIL, senderBatchId: "C-1-01234567", error: `bad receiver ${EMAIL}`, events: [] },
       audit: [{ actor: "system", action: "case.created", reason: "application received", ts: "2026-11-09T00:00:00.000Z", before: { contact: EMAIL }, after: {} }],
     }) as unknown as CaseDetail;
+
+  it("hides the applicant's documents and any duplicate pair that involves one, and says how many there are", () => {
+    const d = detail();
+    d.case.docUrls = ["/api/ops/photo?path=cases%2FC-1%2Fdoc-1.jpg"];
+    d.dupPhotos = [
+      { caseId: "C-0", thisUrl: "/api/ops/photo?path=cases%2FC-1%2Fdoc-1.jpg", otherUrl: "/api/ops/photo?path=cases%2FC-0%2Fphoto-1.jpg" },
+      { caseId: "C-0", thisUrl: "/api/ops/photo?path=cases%2FC-1%2Fphoto-1.jpg", otherUrl: "/api/ops/photo?path=cases%2FC-0%2Fdoc-1.jpg" },
+      { caseId: "C-0", thisUrl: "/api/ops/photo?path=cases%2FC-1%2Fphoto-1.jpg", otherUrl: "/api/ops/photo?path=cases%2FC-0%2Fphoto-2.jpg" },
+    ];
+    const v = viewerDetail(d);
+    expect(v.case.docUrls).toEqual([]);
+    expect(v.case.privateDocCount).toBe(1);
+    expect(v.dupPhotos).toHaveLength(1);
+    expect(JSON.stringify(v)).not.toContain("doc-1");
+  });
+
+  it("shows the panel's ledger line as the ledger publishes it: no tier number, nothing about health", () => {
+    const d = detail();
+    d.case.aiDecision = {
+      eligibility: "eligible",
+      tier: 4,
+      recommendedAmountCents: 55_000,
+      confidence: 0.9,
+      reasons: [],
+      redFlags: [],
+      followUpQuestions: [],
+      applicantLanguage: "en",
+      ledgerSummary: "Family of 5 displaced to a motel; child with asthma lost meds; Tier 4.",
+    };
+    expect(viewerDetail(d).case.aiDecision?.ledgerSummary).toBe("Family of 5 displaced to a motel");
+  });
 
   it("keeps what the panel draws and drops everything else", () => {
     const v = viewerDetail(detail());

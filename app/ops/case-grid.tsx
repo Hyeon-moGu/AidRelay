@@ -170,7 +170,7 @@ export function CaseGrid({
       {
         field: "redFlags",
         headerName: "Flags",
-        width: 220,
+        width: 180,
         cellRenderer: FlagsCell,
         autoHeight: true,
         // Text form for filtering, copy and export; AG Grid 36 also warns (#48) when an array column has none.

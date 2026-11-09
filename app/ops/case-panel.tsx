@@ -12,18 +12,24 @@ export type { CaseDetail };
 
 const orDash = (s: string) => s || "–";
 
+const MOVES_A_CASE = /^(?:case\.(?:evaluated|escalated|reopened|human_\w+)|payout\.(?:failed|reversed|create_failed))$/;
+
 /**
- * Why a case the model assessed is with a volunteer: the agent's latest evaluation or escalation (the audit
- * trail is newest first). The model's own verdict ("needs info", "eligible") can differ from the status the
- * code chose, so the panel says which rule decided.
+ * Why a case is with a volunteer: the newest audit entry that moved it into needs_review (the trail is newest
+ * first), whoever made it: the agent's evaluation, a payout PayPal failed, or a volunteer's reopen. A later
+ * write that left the status where it was (an escalation of a case already in review) does not count. The
+ * model's own verdict ("needs info", "eligible") can differ from the status the code chose, so the panel says
+ * which rule decided.
  */
-function routedBecause(status: string, audit: CaseDetail["audit"]): { clause?: string; reason: string } | undefined {
+function routedBecause(status: string, audit: CaseDetail["audit"]): { label: string; clause?: string; reason: string } | undefined {
   if (status !== "needs_review") return undefined;
-  const last = audit.find((a) => a.actor === "agent" && (a.action === "case.escalated" || a.action === "case.evaluated"));
-  return last ? { clause: last.policyClause, reason: last.reason } : undefined;
+  const moved = audit.find((a) => (a.to !== undefined ? a.to === "needs_review" && a.from !== "needs_review" : MOVES_A_CASE.test(a.action)));
+  if (!moved) return undefined;
+  const label = moved.actor === "agent" ? "Sent to a volunteer" : moved.actor === "system" ? "Back with a volunteer" : "Put in review by a volunteer";
+  return { label, clause: moved.policyClause, reason: moved.reason };
 }
 
-function DecisionBlock({ d, title, routed }: { d: Decision; title: string; routed?: { clause?: string; reason: string } }) {
+function DecisionBlock({ d, title, routed }: { d: Decision; title: string; routed?: { label: string; clause?: string; reason: string } }) {
   return (
     <section className="space-y-2.5 rounded-lg border border-border p-3">
       <div className="flex flex-wrap items-center justify-between gap-2">
@@ -36,7 +42,7 @@ function DecisionBlock({ d, title, routed }: { d: Decision; title: string; route
       </div>
       {routed && (
         <p className="line-clamp-4 rounded-md bg-warning-soft px-2.5 py-1.5 text-[13px] leading-snug" title={routed.reason}>
-          <span className="font-medium text-warning">Sent to a volunteer</span>
+          <span className="font-medium text-warning">{routed.label}</span>
           {routed.clause && (
             <Chip tone="accent" mono className="mx-1">
               {routed.clause}
@@ -126,6 +132,9 @@ export function CasePanel({
         ) : (
           <p className="mt-1.5 leading-relaxed text-muted-foreground">
             The applicant’s name, email, phone and address are hidden in the open demo. Volunteers see them here after signing in.
+            {c.privateDocCount
+              ? ` So ${c.privateDocCount === 1 ? "is the document" : `are the ${c.privateDocCount} documents`} the applicant sent, such as a proof of address.`
+              : ""}
           </p>
         )}
       </div>

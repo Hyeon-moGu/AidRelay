@@ -10,6 +10,12 @@ import type { CaseDetail } from "@/lib/ops/rows";
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
+/** The status an audit entry's before/after records, when it records one. */
+const statusOf = (v: unknown): string | undefined => {
+  const status = (v as { status?: unknown } | null | undefined)?.status;
+  return typeof status === "string" ? status : undefined;
+};
+
 /** Applicant photos are served by /api/ops/photo, never from a public bucket. */
 const photoUrl = (path: string) => `/api/ops/photo?path=${encodeURIComponent(path)}`;
 
@@ -49,7 +55,7 @@ async function loadDetail(id: string): Promise<CaseDetail | null> {
           retryable: payoutIsRetryable(payout) && c.status === (payout.status === "create_failed" ? "approved" : "paying"),
         }
       : null,
-    audit: audit.map((a) => ({ ...a, ts: a.ts.toDate().toISOString() })),
+    audit: audit.map((a) => ({ ...a, ts: a.ts.toDate().toISOString(), from: statusOf(a.before), to: statusOf(a.after) })),
   };
 }
 

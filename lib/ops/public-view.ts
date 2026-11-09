@@ -3,7 +3,8 @@
 // field, so a field added to a case later stays private until someone adds it here: contact details, the
 // applicant's private status link and the payout recipient never go out, and free text is scrubbed.
 import type { Decision } from "@/lib/agent/schema";
-import { redactPhoneMatch, scrubIdentity } from "@/lib/ledger/anonymize";
+import { redactPhoneMatch, scrubHealth, scrubIdentity } from "@/lib/ledger/anonymize";
+import { publicSummary } from "@/lib/ledger/labels";
 import type { CaseDetail, OpsRow, OpsRun } from "@/lib/ops/rows";
 
 const REDACTED = "[redacted]";
@@ -23,7 +24,13 @@ export function scrubContactText(text: string): string {
  * public ledger does, so a line stored before the evaluation scrubbed names is covered too.
  */
 export function viewerRow(row: OpsRow): OpsRow {
-  return { ...row, ledgerSummary: scrubContactText(scrubIdentity(row.ledgerSummary, { name: row.name })), name: "", email: "" };
+  return { ...row, ledgerSummary: publicSummary(scrubHealth(scrubContactText(scrubIdentity(row.ledgerSummary, { name: row.name })))), name: "", email: "" };
+}
+
+/** A photo-route URL that points at an applicant's document rather than a photo (`cases/<id>/doc-N.jpg`). */
+export function isDocUrl(url: string): boolean {
+  const path = new URL(url, "http://local").searchParams.get("path") ?? "";
+  return /\/doc-\d+\.jpg$/.test(path);
 }
 
 /** The case panel's data without contact details, and with the applicant's own name and address scrubbed from free text. */
@@ -35,10 +42,14 @@ export function viewerDetail(d: CaseDetail): CaseDetail {
       ...x,
       reasons: x.reasons.map((r) => ({ ...r, evidence: clean(r.evidence) })),
       followUpQuestions: x.followUpQuestions.map(clean),
-      ledgerSummary: clean(x.ledgerSummary),
+      // The same line the public ledger and the visitor's grid show.
+      ledgerSummary: publicSummary(scrubHealth(clean(x.ledgerSummary))),
     };
   return {
-    dupPhotos: d.dupPhotos?.map((p) => ({ caseId: p.caseId, thisUrl: p.thisUrl, otherUrl: p.otherUrl })),
+    // A duplicate pair that involves a document (here or in the earlier case) stays with the staff, like the documents.
+    dupPhotos: d.dupPhotos
+      ?.filter((p) => !isDocUrl(p.thisUrl) && !isDocUrl(p.otherUrl))
+      .map((p) => ({ caseId: p.caseId, thisUrl: p.thisUrl, otherUrl: p.otherUrl })),
     case: {
       id: c.id,
       status: c.status,
@@ -69,7 +80,10 @@ export function viewerDetail(d: CaseDetail): CaseDetail {
       notes: c.notes.map((n) => ({ by: n.by, text: clean(n.text), at: n.at })),
       timestamps: c.timestamps,
       photoUrls: c.photoUrls,
-      docUrls: c.docUrls,
+      // Documents are what an applicant sends when asked for proof of address: they carry the name and street
+      // address the open console hides. Visitors are told how many there are, not shown them.
+      docUrls: [],
+      privateDocCount: c.docUrls.length,
     },
     payout: d.payout && {
       status: d.payout.status,
@@ -81,7 +95,7 @@ export function viewerDetail(d: CaseDetail): CaseDetail {
       retryable: d.payout.retryable,
       events: d.payout.events.map((e) => ({ type: e.type, status: e.status, source: e.source, at: e.at })),
     },
-    audit: d.audit.map((a) => ({ actor: a.actor, action: a.action, policyClause: a.policyClause, reason: clean(a.reason), ts: a.ts })),
+    audit: d.audit.map((a) => ({ actor: a.actor, action: a.action, policyClause: a.policyClause, reason: clean(a.reason), ts: a.ts, from: a.from, to: a.to })),
   };
 }
 

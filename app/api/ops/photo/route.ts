@@ -9,10 +9,19 @@ export const dynamic = "force-dynamic";
 
 export async function GET(req: Request) {
   try {
-    if ((await opsAccess()) === "none") return fail("sign in first", 401);
+    const access = await opsAccess();
+    if (access === "none") return fail("sign in first", 401);
     const path = new URL(req.url).searchParams.get("path") ?? "";
     if (!/^cases\/[A-Za-z0-9-]+\/(photo|doc)-\d+\.jpg$/.test(path)) return fail("bad path", 400);
-    const data = await downloadObject(path);
+    // Documents (proof of address, IDs) carry what the open console hides: staff only.
+    if (access !== "operator" && path.includes("/doc-")) return fail("documents are shown to signed-in staff only", 403);
+    let data: Buffer;
+    try {
+      data = await downloadObject(path);
+    } catch (err) {
+      if ((err as { code?: unknown }).code === 404) return fail("not found", 404);
+      throw err;
+    }
     return new Response(new Uint8Array(data), { headers: { "Content-Type": "image/jpeg", "Cache-Control": "private, max-age=300" } });
   } catch (err) {
     return handleRouteError(err, "ops/photo");

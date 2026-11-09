@@ -85,6 +85,8 @@ export interface CaseDetail {
     evaluatingSince?: string | null;
     photoUrls: string[];
     docUrls: string[];
+    /** Documents on file that a visitor of the open console is not shown (proof of address, IDs, receipts). */
+    privateDocCount?: number;
   };
   /** P-4 photo matches: the file in this case and the same photo in the earlier case. */
   dupPhotos?: Array<{ caseId: string; thisUrl: string; otherUrl: string }>;
@@ -101,7 +103,8 @@ export interface CaseDetail {
     createdAt?: string;
     updatedAt?: string;
   } | null;
-  audit: Array<{ actor: string; action: string; policyClause?: string; reason: string; ts: string }>;
+  /** Newest first. `from` and `to` are the statuses of a status change (absent for other entries). */
+  audit: Array<{ actor: string; action: string; policyClause?: string; reason: string; ts: string; from?: string; to?: string }>;
 }
 
 /** Statuses an operator may act on from the grid. */
