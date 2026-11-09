@@ -85,7 +85,7 @@ export default async function PolicyPage() {
               </Rule>
               <Rule icon={UserCheck} title="When a volunteer steps in">
                 The AI case officer pays on its own only when the grant is {moneyWhole(autoLimit)} or less, nothing about the case looks wrong, and a second,
-                independent check agrees. Everything else waits for a volunteer, and only a volunteer can turn an application down.
+                separate check agrees. Everything else waits for a volunteer, and only a volunteer can turn an application down.
               </Rule>
               <Rule icon={Wallet} title="When money runs short">
                 Families in the greatest need are paid first, then everyone else in the order they applied. Anyone approved but not yet paid is paid

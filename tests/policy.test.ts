@@ -50,7 +50,7 @@ describe("policy.md and lib/agent/policy.ts agree", () => {
 
   it("P-9 lists the evidence, second-evaluation and automation-limit conditions", () => {
     expect(policyMd).toMatch(/8\. at least one usable photo or document/);
-    expect(policyMd).toMatch(/9\. a second, independent evaluation/);
+    expect(policyMd).toMatch(/9\. a second, separate evaluation/);
     expect(policyMd).toMatch(/10\. the automation limits in P-10/);
   });
 

@@ -105,7 +105,7 @@ The model judges the case. Code decides everything that moves money:
 | The level of need, 1 to 4 | Duplicates: the same photo, address or contact as an earlier case (P-4) |
 | How confident it is | Whether the home is inside the declared area (P-2) |
 | Whether a photo contradicts the story | Whether the story, or a request far above any grant, needs a volunteer |
-| The reasons, each with its policy clause and the evidence | Whether all ten auto-approve conditions hold (P-9), including a second, independent evaluation that must agree, and the automation limits (P-10) |
+| The reasons, each with its policy clause and the evidence | Whether all ten auto-approve conditions hold (P-9), including a second, separate evaluation that must agree (the model again, with a different framing and without the first answer), and the automation limits (P-10) |
 | Follow-up questions, in the applicant's language | Who is paid first when money is short (P-8) |
 | The one public line on the ledger | Every status change, the reservation of funds and the payout itself |
 
@@ -113,13 +113,13 @@ The limits live in [`policy.md`](policy.md), written by the fund's people and pu
 
 | Guarantee | Enforced in | Tests |
 |---|---|---|
-| The agent pays on its own only when all ten conditions of policy P-9 hold: eligible, at most $250, confidence at least 0.85, no red flags, money available, usable photo evidence, a second independent evaluation that agrees, and inside the P-10 limits (20 grants an hour, $5,000 a day). | `lib/agent/guardrails.ts` | `guardrails.test.ts` |
+| The agent pays on its own only when all ten conditions of policy P-9 hold: eligible, a tier the policy allows, at most $250, confidence at least 0.85, no red flags, money available, no earlier payout for the case, usable photo evidence, a second, separate evaluation that agrees, and inside the P-10 limits (20 grants an hour, $5,000 a day), checked again inside the transaction that records the payout, so parallel calls cannot all slip under them. | `lib/agent/guardrails.ts`, `lib/db/repos/payouts.ts` | `guardrails.test.ts`, `auto-pay-limits.test.ts` |
 | It cannot reject, cannot move a paid case and cannot override a volunteer's decision. Every status write goes through a state machine per actor. | `lib/agent/transitions.ts` | `transitions.test.ts` |
 | Amounts come from the policy's tiers, never from the model. A volunteer's amount is capped (P-7). | `lib/agent/evaluate.ts`, `lib/agent/policy.ts` | `evaluate.test.ts`, `policy.test.ts` |
 | One payout per case and no overdraft: money is reserved before any payout, and the Payouts `sender_batch_id` is derived from the case id. | `lib/db/repos/fund.ts`, `lib/db/repos/payouts.ts` | `repos.test.ts` |
 | A payout PayPal did not accept is never retried by the agent. A volunteer sends the same request again from `/ops`, with the same `sender_batch_id`, so the family still cannot be paid twice. | `lib/db/repos/payouts.ts` | `payout-retry.test.ts` |
-| The payment order (P-8) is computed in code, for new applications too: nobody jumps a family that is already waiting. | `lib/agent/allocation.ts` | `allocation.test.ts`, `evaluate-tool.test.ts` |
-| The applicant's story is untrusted data: delimited in the prompt and scanned for instructions, and a hit goes to a volunteer. | `lib/agent/evaluate.ts`, `lib/agent/prompts.ts` | `evaluate.test.ts` |
+| The payment order (P-8) is computed in code, for new applications too, and checked again before every payout: nobody jumps a family that is already waiting. | `lib/agent/allocation.ts`, `lib/agent/tools.ts` | `allocation.test.ts`, `evaluate-tool.test.ts`, `auto-pay-limits.test.ts` |
+| The applicant's story, and the writing the photo pre-screen reads off the images, is untrusted data: delimited in the prompt so it cannot be closed early, and scanned for instructions; a hit goes to a volunteer. | `lib/agent/evaluate.ts`, `lib/agent/prompts.ts` | `evaluate.test.ts`, `tools-pure.test.ts` |
 | The ledger carries no contact details. Emails and phone numbers are scrubbed from everything the agent writes, and the applicant's own name and street address from the one line that is published. | `lib/ledger/anonymize.ts` | `anonymize.test.ts` |
 | Every tool call is shown live in the `/ops` activity feed, and every change to a case or the fund is written to the audit log with the policy clause it relied on. | `lib/agent/tools.ts`, `lib/db/repos/audit.ts` | `officer.test.ts` |
 | The staff console is open to look at in the demo, never to act: every action needs a signed-in volunteer, and a visitor's copy of a case has no contact details, no private status link and no payout recipient. | `lib/ops/auth.ts`, `lib/ops/public-view.ts` | `ops-public-view.test.ts` |
@@ -142,7 +142,7 @@ The agent's PayPal tools are our own typed functions over REST. PayPal's Agent T
 
 ## AG Grid and AG Studio
 
-| What the prize looks for | Where it is |
+| What we used | Where it is |
 |---|---|
 | Custom widgets | Two of our own on the public ledger: *Where the money is* (`fund-progress`) and *Money in, money out* (`money-trail`), in `app/ledger/studio-widgets.tsx`. |
 | Theming | `studioTheme.withParams` binds Studio to the site's CSS tokens, so the report follows light and dark mode (`app/ledger/ledger-studio.tsx`). |
@@ -222,11 +222,11 @@ pnpm seed --placeholders    # the fund and 22 fictional cases; gray placeholders
 pnpm dev            # http://localhost:3000
 ```
 
-The seed photos are not in the repository. With `--placeholders` every seeded case therefore comes back as `needs_info`, because the agent cannot see damage in a gray placeholder. To watch an automatic payout locally, apply on `/apply` with a real photo, or put your own images in `seed/photos` under the names `seed/cases.json` lists.
+The seed photos are not in the repository. With `--placeholders` the seeded cases therefore wait for people instead of being paid: most come back as `needs_info`, because the agent cannot see damage in a gray placeholder, and the ones with a red flag (C-009 reuses C-003's photo, C-010 asks for far more than any grant) go to `needs_review` as usual. To watch an automatic payout locally, apply on `/apply` with a real photo, or put your own images in `seed/photos` under the names `seed/cases.json` lists.
 
 Then donate on `/donate` as your sandbox donor and run `pnpm agent:sweep` to let the Case Officer work through the queue. Donations are never seeded: an Orders capture needs the donor's approval in a browser, and the ledger only shows real sandbox captures. [`seed/README.md`](seed/README.md) describes the seed cases, the photos and the demo arithmetic.
 
-**Tests:** `pnpm typecheck && pnpm lint && pnpm test`. More than 200 tests cover the guardrails, the state machine, evaluation rules, duplicate photos, allocation, payouts and payout retries, PayPal events, applicant intake, volunteer decisions, what a sweep records, the ledger's anonymization, the auditor's model bridge and the seed data. They run against an in-memory database with PayPal and the model mocked, so they move no money.
+**Tests:** `pnpm typecheck && pnpm lint && pnpm test`. More than 300 tests cover the guardrails, the state machine, evaluation rules, duplicate photos, allocation, payouts and payout retries, PayPal events, applicant intake, volunteer decisions, what a sweep records, the ledger's anonymization, the auditor's model bridge and the seed data. They run against an in-memory database with PayPal and the model mocked, so they move no money.
 
 ## Limits and non-goals
 
@@ -234,6 +234,7 @@ Then donate on `/donate` as your sandbox donor and run `pnpm agent:sweep` to let
 - **PayPal's fees are not on the ledger yet.** *Raised* is what donors gave; the fees PayPal charges the fund (for example on each payout) are not subtracted, so the fund's real PayPal balance is lower than *Available*.
 - **A refunded or disputed donation** is recorded but not taken out of *Raised*.
 - **A payout that fails after PayPal accepted it** (failed, returned, or unclaimed for 30 days) gives its money back to the fund and returns to a volunteer, but it cannot be issued a second time from the console yet.
+- **A payout call that times out** leaves the case waiting for a volunteer to send it again. If a volunteer rejects the case instead and PayPal had in fact paid it, PayPal's later success notice cannot be applied, and the ledger shows that grant as not paid until it is reconciled by hand.
 - **The staff console is open to look at in this demo** (`OPS_PUBLIC_VIEW=true`), so anyone can see the applications and their photos there, with contact details hidden. That is for judging, and `/apply` says so before anyone writes anything. A real fund sets it to `false`, which puts the whole console behind the sign-in.
 
 Out of scope on purpose: KYC and identity verification, live (non-sandbox) money, bank verification, multi-tenant auth, a mobile app, SMS intake, email or SMS notifications (applicants read messages on their status page), in-kind logistics.

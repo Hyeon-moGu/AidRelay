@@ -23,7 +23,7 @@ export function getDb(): Firestore {
   const app =
     getApps()[0] ??
     initializeApp({
-      // GOOGLE_APPLICATION_CREDENTIALS points at the service-account JSON (local file or Render secret file).
+      // GOOGLE_APPLICATION_CREDENTIALS points at a local service-account JSON; empty means ADC (gcloud login locally, the attached service account on Cloud Run).
       credential: applicationDefault(),
       projectId: env.FIREBASE_PROJECT_ID,
     });

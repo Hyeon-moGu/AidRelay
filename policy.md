@@ -38,7 +38,7 @@ Editing the wording changes how the agent judges a case. The amounts, the declar
   6. fund balance covers the amount after reservation
   7. no prior payout for this case
   8. at least one usable photo or document on file (P-3); a story alone is never enough
-  9. a second, independent evaluation agrees on eligibility and tier
+  9. a second, separate evaluation, which never sees the first answer, agrees on eligibility and tier
   10. the automation limits in P-10 are not exceeded
 - Anything else → human queue (`needs_review` / `needs_info` / `parked`).
 - **P-10 Automation limits.** Without a human, the agent pays at most **20** grants per rolling hour and at most **$5,000** per rolling 24 hours. Cases beyond these limits wait in the human queue.
@@ -49,7 +49,7 @@ Editing the wording changes how the agent judges a case. The amounts, the declar
 - Tone: plain, short, no legal language, never ask for information not required by this policy.
 
 ## 7. Privacy
-- The public ledger shows: zip prefix (3 digits), tier, amount, PayPal batch ID, a one-line AI summary with no names, addresses, or contact details, and whether a human reviewed the case.
+- The public ledger shows: zip prefix (3 digits), tier, amount, PayPal batch ID, a one-line AI summary with no names, addresses, contact details or health information, and whether a human reviewed the case.
 - Contact details (name, email, phone, street address) are never public.
 - Photos and the applicant's own words are for the fund's volunteers. In this demo the staff console is open to look at, so anyone can see both there, with contact details hidden; nothing can be changed without the staff sign-in. A real fund keeps the whole console behind the sign-in.
 
