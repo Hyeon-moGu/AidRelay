@@ -133,6 +133,11 @@ export function DonateForm({ clientId, tierCents }: { clientId: string; tierCent
               "/api/donate/capture-order",
               { orderId: orderID },
             );
+            // PayPal can answer a capture with DECLINED or FAILED: nothing reached the fund.
+            if (data.status === "DECLINED" || data.status === "FAILED") {
+              setPhase({ kind: "error", message: "PayPal did not complete this payment, so you were not charged." });
+              return;
+            }
             setPhase({ kind: "done", ...data });
           } catch (err) {
             setPhase({ kind: "error", message: err instanceof Error ? err.message : String(err) });
@@ -177,17 +182,23 @@ export function DonateForm({ clientId, tierCents }: { clientId: string; tierCent
   }
 
   if (phase.kind === "done") {
+    // Anything but COMPLETED (a payment PayPal is still reviewing) is recorded but not yet counted in the fund.
+    const settled = phase.status === "COMPLETED";
     return (
       <section aria-labelledby="thanks" className="animate-relay-in h-fit space-y-5 rounded-2xl border border-border bg-card p-6">
         <div className="flex items-start gap-3">
-          <span aria-hidden="true" className="flex size-10 shrink-0 items-center justify-center rounded-full bg-success-soft text-success">
-            <CircleCheck className="size-5" />
+          <span aria-hidden="true" className={`flex size-10 shrink-0 items-center justify-center rounded-full ${settled ? "bg-success-soft text-success" : "bg-wait-soft text-wait"}`}>
+            {settled ? <CircleCheck className="size-5" /> : <LoaderCircle className="size-5" />}
           </span>
           <div>
             <h2 id="thanks" className="text-xl font-semibold tracking-tight">
-              Thank you. Your {moneyWhole(phase.amountCents)} is in the fund.
+              {settled ? `Thank you. Your ${moneyWhole(phase.amountCents)} is in the fund.` : `Thank you. PayPal is still confirming your ${moneyWhole(phase.amountCents)}.`}
             </h2>
-            <p className="mt-1 text-sm text-muted-foreground">The AI case officer is already checking whether an approved family is waiting for it.</p>
+            <p className="mt-1 text-sm text-muted-foreground">
+              {settled
+                ? "The AI case officer is already checking whether an approved family is waiting for it."
+                : "It joins the fund and appears on the public ledger as soon as PayPal completes it. There is nothing more for you to do."}
+            </p>
           </div>
         </div>
         <dl className="grid grid-cols-[auto_minmax(0,1fr)] gap-x-4 gap-y-2 border-t border-border pt-5 text-sm">
@@ -195,8 +206,12 @@ export function DonateForm({ clientId, tierCents }: { clientId: string; tierCent
           <dd className="truncate font-mono" translate="no">
             {phase.captureId}
           </dd>
-          <dt className="text-muted-foreground">Raised so far</dt>
-          <dd className="font-medium tabular-nums">{moneyWhole(phase.raisedCents)}</dd>
+          {settled && (
+            <>
+              <dt className="text-muted-foreground">Raised so far</dt>
+              <dd className="font-medium tabular-nums">{moneyWhole(phase.raisedCents)}</dd>
+            </>
+          )}
         </dl>
         <Link href="/ledger" className="inline-flex items-center gap-1.5 text-sm font-medium text-primary hover:underline">
           Follow it on the public ledger
