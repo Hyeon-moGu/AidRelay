@@ -1,7 +1,7 @@
 import { matchingPhotoPair } from "@/lib/agent/evaluate";
 import { getCase } from "@/lib/db/repos/cases";
 import { listAuditForCase } from "@/lib/db/repos/audit";
-import { getPayout } from "@/lib/db/repos/payouts";
+import { getPayout, payoutIsRetryable } from "@/lib/db/repos/payouts";
 import { fail, handleRouteError, ok } from "@/lib/http";
 import { isOperator } from "@/lib/ops/auth";
 
@@ -39,7 +39,14 @@ export async function GET(_req: Request, ctx: { params: Promise<{ id: string }> 
         docUrls: c.docs.map(photoUrl),
       },
       payout: payout
-        ? { ...payout, createdAt: payout.createdAt.toDate().toISOString(), updatedAt: payout.updatedAt.toDate().toISOString(), events: payout.events.map((e) => ({ ...e, at: e.at.toDate().toISOString() })) }
+        ? {
+            ...payout,
+            createdAt: payout.createdAt.toDate().toISOString(),
+            updatedAt: payout.updatedAt.toDate().toISOString(),
+            events: payout.events.map((e) => ({ ...e, at: e.at.toDate().toISOString() })),
+            // PayPal did not accept it, or never answered: the panel offers to send it again.
+            retryable: payoutIsRetryable(payout),
+          }
         : null,
       audit: audit.map((a) => ({ ...a, ts: a.ts.toDate().toISOString() })),
     });

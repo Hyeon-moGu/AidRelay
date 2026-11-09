@@ -134,6 +134,11 @@ export interface CaseDoc {
   };
 }
 
+/** The amount the fund will pay for a case: the human's figure if set, else the agent's recommendation. */
+export function amountForCase(c: Pick<CaseDoc, "humanDecision" | "approvedAmountCents" | "aiDecision">): number | null {
+  return c.humanDecision?.amountCents ?? c.approvedAmountCents ?? c.aiDecision?.recommendedAmountCents ?? null;
+}
+
 export type PayoutStatus =
   | "creating"
   | "create_failed"

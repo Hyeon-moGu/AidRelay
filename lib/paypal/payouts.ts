@@ -77,6 +77,22 @@ export async function getPayoutBatch(payoutBatchId: string): Promise<PayoutBatch
   return paypalFetch<PayoutBatch>(`/v1/payments/payouts/${encodeURIComponent(payoutBatchId)}`);
 }
 
+/** What the recipient reads. Built in one place so a retry sends PayPal the same request as the first attempt. */
+export function payoutNote(fundName: string, caseId: string): string {
+  return `Relief grant from ${fundName}. Reference ${caseId}.`;
+}
+
+/**
+ * PayPal refuses a second batch with a sender_batch_id it has already seen and points at the first one
+ * ("Batch with given sender_batch_id already exists", with a link to it). Returns that batch's id when an
+ * error body is such a refusal, so a retry can adopt the batch the first attempt created after all.
+ */
+export function existingBatchIdFromError(body: unknown): string | undefined {
+  const text = JSON.stringify(body ?? "");
+  if (!/already exists/i.test(text) || !/sender_batch_id/i.test(text)) return undefined;
+  return /\/v1\/payments\/payouts\/([A-Z0-9]{6,})/.exec(text)?.[1];
+}
+
 export type PayoutOutcome = "paid" | "failed" | "pending";
 
 /** Item transaction_status → what it means for the case. UNCLAIMED stays pending (PayPal holds it ~30 days, then RETURNED). */

@@ -17,9 +17,10 @@ import { recentAutoPayouts } from "@/lib/db/repos/autoApprovals";
 import { claimForEvaluation, getCase, listAllCases, listCases, setCaseStatus, updateCase } from "@/lib/db/repos/cases";
 import { getFund, InsufficientFundsError, releaseFunds, reserveFunds } from "@/lib/db/repos/fund";
 import { createPayoutForCase, getPayout, refreshPayoutStatus } from "@/lib/db/repos/payouts";
-import { fundBalanceCents, type CaseDoc } from "@/lib/db/types";
+import { amountForCase, fundBalanceCents, type CaseDoc } from "@/lib/db/types";
 import { MESSAGES, normalizeLang } from "@/lib/i18n/messages";
 import { scrubPii } from "@/lib/ledger/anonymize";
+import { payoutNote } from "@/lib/paypal/payouts";
 
 export interface RunContext {
   runId: string;
@@ -103,10 +104,7 @@ export function caseView(c: CaseDoc) {
   };
 }
 
-/** The amount the fund will pay for a case: the human's figure if set, else the agent's recommendation. */
-export function amountForCase(c: CaseDoc): number | null {
-  return c.humanDecision?.amountCents ?? c.approvedAmountCents ?? c.aiDecision?.recommendedAmountCents ?? null;
-}
+export { amountForCase };
 
 async function computeAndStoreDuplicates(c: CaseDoc) {
   const matches = findDuplicates(c, await listAllCases());
@@ -385,7 +383,7 @@ export function buildTools(ctx: RunContext): ToolSet {
             amountCents: amount,
             currency: fund.currency,
             recipientEmail: c.contact.email,
-            note: `Relief grant from ${fund.name}. Reference ${c.id}.`,
+            note: payoutNote(fund.name, c.id),
             actor: "agent",
             policyClause: path === "auto" ? "P-9" : "human decision",
             reason: path === "auto" ? "auto-approved payout" : "human-approved payout",

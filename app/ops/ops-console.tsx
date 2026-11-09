@@ -151,6 +151,24 @@ export function OpsConsole({ licenseKey }: { licenseKey: string }) {
     }
   }
 
+  /** Sends again a payout PayPal did not accept (same request, same batch id; see /api/ops/payout-retry). */
+  async function retryPayout(caseId: string) {
+    setBusy("retry");
+    setNotice(null);
+    try {
+      const res = await fetch("/api/ops/payout-retry", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ caseId }) });
+      const json = (await res.json()) as ApiResult<{ status: string; payoutBatchId: string | null }>;
+      if (!json.ok) throw new Error(json.error);
+      setNotice({ tone: "ok", text: `${caseId}: PayPal accepted the payout${json.data.payoutBatchId ? ` (batch ${json.data.payoutBatchId})` : ""}.` });
+    } catch (err) {
+      setNotice({ tone: "error", text: `${caseId}: the payout was not sent. ${err instanceof Error ? err.message : String(err)}` });
+    } finally {
+      setBusy(null);
+      await refresh();
+      await openCase(caseId);
+    }
+  }
+
   async function signOut() {
     await fetch("/api/ops/login", { method: "DELETE" });
     router.replace("/ops/login");
@@ -295,7 +313,7 @@ export function OpsConsole({ licenseKey }: { licenseKey: string }) {
                   Loading <span className="font-mono text-foreground">{opening}</span>…
                 </p>
               ) : (
-                <CasePanel detail={detail} onClose={() => setDetail(null)} />
+                <CasePanel detail={detail} onClose={() => setDetail(null)} onRetryPayout={(id) => void retryPayout(id)} retrying={busy === "retry"} />
               )}
             </section>
             <section aria-labelledby="feed-title" className="rounded-xl border border-border bg-card">

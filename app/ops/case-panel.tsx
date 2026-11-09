@@ -1,8 +1,9 @@
 "use client";
 
 // Side panel: the photos, the applicant's story, the AI decision with its clauses, and the audit trail.
-import { Images, Lock, X } from "lucide-react";
+import { Images, LoaderCircle, Lock, RotateCw, X } from "lucide-react";
 import { Chip, StatusBadge } from "@/components/status-badge";
+import { Button } from "@/components/ui/button";
 import { clock, money } from "@/lib/format";
 import type { Decision } from "@/lib/agent/schema";
 
@@ -35,7 +36,17 @@ export interface CaseDetail {
   };
   /** P-4 photo matches: the file in this case and the same photo in the earlier case. */
   dupPhotos?: Array<{ caseId: string; thisUrl: string; otherUrl: string }>;
-  payout: { status: string; outcome: string; batchStatus?: string; payoutBatchId?: string; amountCents: number; error?: string; events: Array<{ type: string; status?: string; source: string; at: string }> } | null;
+  payout: {
+    status: string;
+    outcome: string;
+    batchStatus?: string;
+    payoutBatchId?: string;
+    amountCents: number;
+    error?: string;
+    /** PayPal did not accept the payout, or never answered: an operator may send it again. */
+    retryable?: boolean;
+    events: Array<{ type: string; status?: string; source: string; at: string }>;
+  } | null;
   audit: Array<{ actor: string; action: string; policyClause?: string; reason: string; ts: string }>;
 }
 
@@ -85,7 +96,18 @@ function DecisionBlock({ d, title }: { d: Decision; title: string }) {
   );
 }
 
-export function CasePanel({ detail, onClose }: { detail: CaseDetail | null; onClose: () => void }) {
+export function CasePanel({
+  detail,
+  onClose,
+  onRetryPayout,
+  retrying,
+}: {
+  detail: CaseDetail | null;
+  onClose: () => void;
+  /** Sends again a payout PayPal did not accept; the button shows only when the payout allows it. */
+  onRetryPayout?: (caseId: string) => void;
+  retrying?: boolean;
+}) {
   if (!detail) {
     return <p className="py-6 text-center text-sm text-muted-foreground">Click a row to see the photos, the AI reasoning and the audit trail.</p>;
   }
@@ -206,6 +228,20 @@ export function CasePanel({ detail, onClose }: { detail: CaseDetail | null; onCl
           </>
         )}
       </dl>
+
+      {detail.payout?.retryable && onRetryPayout && (
+        <div className="rounded-lg border border-danger/30 bg-danger-soft/60 p-3 text-[13px]">
+          <p className="font-medium text-danger">{detail.payout.status === "create_failed" ? "PayPal did not accept this payout" : "PayPal never answered for this payout"}</p>
+          <p className="mt-1 leading-relaxed text-muted-foreground">
+            {money(detail.payout.amountCents)} is still reserved for this case. Sending it again repeats the same request with the same PayPal batch id, so the
+            family cannot be paid twice.
+          </p>
+          <Button size="sm" className="mt-2.5" disabled={retrying} onClick={() => onRetryPayout(c.id)}>
+            {retrying ? <LoaderCircle aria-hidden="true" className="animate-spin" /> : <RotateCw aria-hidden="true" />}
+            Send payout again
+          </Button>
+        </div>
+      )}
 
       {c.applicantMessage && c.status === "needs_info" && (
         <div className="rounded-lg bg-warning-soft p-3 text-[13px]">
