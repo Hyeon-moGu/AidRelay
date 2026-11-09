@@ -1,6 +1,6 @@
 // A small in-memory stand-in for the firebase-admin Firestore surface the repos use:
 // collection/doc get-set-update-create-delete, where/orderBy/limit queries, runTransaction with
-// buffered writes, dotted update paths, FieldValue.arrayUnion and ignoreUndefinedProperties semantics.
+// buffered writes, dotted update paths, FieldValue.arrayUnion, FieldValue.delete and ignoreUndefinedProperties semantics.
 import { Timestamp } from "firebase-admin/firestore";
 
 type Doc = Record<string, unknown>;
@@ -19,6 +19,10 @@ function clone<T>(v: T): T {
 function deepMerge(target: Doc, src: Doc): void {
   for (const [k, v] of Object.entries(src)) {
     if (v === undefined) continue;
+    if (isDelete(v)) {
+      delete target[k];
+      continue;
+    }
     const cur = target[k];
     if (!isLeaf(v) && cur && !isLeaf(cur)) deepMerge(cur as Doc, v as Doc);
     else target[k] = clone(v);
@@ -46,6 +50,21 @@ function setPath(doc: Doc, path: string, value: unknown): void {
 
 function isArrayUnion(v: unknown): v is { elements: unknown[] } {
   return !!v && typeof v === "object" && v.constructor?.name === "ArrayUnionTransform" && Array.isArray((v as { elements?: unknown }).elements);
+}
+
+/** FieldValue.delete(): removes the field in update() and in set() with merge, as Firestore does. */
+function isDelete(v: unknown): boolean {
+  return !!v && typeof v === "object" && v.constructor?.name === "DeleteTransform";
+}
+
+function deletePath(doc: Doc, path: string): void {
+  const parts = path.split(".");
+  let cur: unknown = doc;
+  for (const part of parts.slice(0, -1)) {
+    if (cur === null || typeof cur !== "object") return;
+    cur = (cur as Doc)[part];
+  }
+  if (cur !== null && typeof cur === "object") delete (cur as Doc)[parts[parts.length - 1]];
 }
 
 function cmp(a: unknown, b: unknown): number {
@@ -94,7 +113,9 @@ export class FakeDocRef {
     if (!doc) throw new Error(`5 NOT_FOUND: no document to update: ${this.path}`);
     for (const [k, v] of Object.entries(patch)) {
       if (v === undefined) continue;
-      if (isArrayUnion(v)) {
+      if (isDelete(v)) {
+        deletePath(doc, k);
+      } else if (isArrayUnion(v)) {
         const cur = getPath(doc, k);
         setPath(doc, k, [...(Array.isArray(cur) ? cur : []), ...v.elements.map(clone)]);
       } else {

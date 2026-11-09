@@ -177,7 +177,7 @@ export function CasePanel({ detail, onClose }: { detail: CaseDetail | null; onCl
         )}
       </dl>
 
-      {c.applicantMessage && (
+      {c.applicantMessage && c.status === "needs_info" && (
         <div className="rounded-lg bg-warning-soft p-3 text-[13px]">
           <p className="font-medium text-warning">Message shown to the applicant ({c.applicantMessage.lang})</p>
           <p className="mt-1 leading-relaxed whitespace-pre-line">{c.applicantMessage.text}</p>

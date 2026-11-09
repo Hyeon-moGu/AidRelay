@@ -194,7 +194,8 @@ export default async function StatusPage({ params, searchParams }: { params: Pro
         )}
       </section>
 
-      {c.applicantMessage && c.status !== "paid" && (
+      {/* The fund's question, only while it is waiting for the answer. */}
+      {c.applicantMessage && c.status === "needs_info" && (
         <section aria-labelledby="msg" className="rounded-2xl bg-warning-soft p-5">
           <h2 id="msg" className="flex items-center gap-2 text-sm font-semibold text-warning">
             <MessageSquare aria-hidden="true" className="size-4" />

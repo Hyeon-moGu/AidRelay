@@ -11,9 +11,7 @@ import { Button } from "@/components/ui/button";
 import { Field, Input, Textarea } from "@/components/ui/input";
 import type { Prefill } from "@/lib/demo-prefill";
 import { MESSAGES, type Lang } from "@/lib/i18n/messages";
-
-const MAX_PHOTOS = 3;
-const MAX_FILE_BYTES = 10 * 1024 * 1024;
+import { fileTypeProblem, MAX_FILE_BYTES, MAX_PHOTOS } from "@/lib/upload-rules";
 
 type Fields = Omit<Prefill, "lang">;
 type ErrorKey = keyof Fields | "photos" | "form";
@@ -111,11 +109,26 @@ export function ApplyForm({ initialLang, prefill, largeHouseholdFrom }: { initia
     } else void submit();
   }
 
+  /**
+   * The files the server can read. One it cannot (an iPhone HEIC photo, or not an image) is left out and
+   * named in the error straight away, before a slow upload that would be refused.
+   */
+  function readable(picked: File[]): File[] {
+    const bad = picked.find((x) => fileTypeProblem(x));
+    setErrors((prev) => ({ ...prev, photos: bad ? a.errors.fileType.replace("{name}", bad.name) : undefined }));
+    return picked.filter((x) => !fileTypeProblem(x));
+  }
+
   function addPhotos(e: React.ChangeEvent<HTMLInputElement>) {
-    const picked = Array.from(e.target.files ?? []);
+    const picked = readable(Array.from(e.target.files ?? []));
     e.target.value = "";
     setPhotos((prev) => [...prev, ...picked].slice(0, MAX_PHOTOS));
-    if (errors.photos) setErrors({ ...errors, photos: undefined });
+  }
+
+  function addDoc(e: React.ChangeEvent<HTMLInputElement>) {
+    const picked = readable(Array.from(e.target.files ?? []));
+    e.target.value = "";
+    setDoc(picked[0] ?? null);
   }
 
   const text = (k: keyof Fields, label: string, opts: { hint?: string; optional?: boolean; type?: string; inputMode?: React.HTMLAttributes<HTMLInputElement>["inputMode"]; autoComplete?: string; placeholder?: string } = {}) => (
@@ -267,7 +280,7 @@ export function ApplyForm({ initialLang, prefill, largeHouseholdFrom }: { initia
                       <label className="inline-flex h-11 cursor-pointer items-center gap-2 rounded-lg border border-input/60 bg-card px-3 text-sm font-medium transition-colors hover:bg-muted has-[:focus-visible]:outline-2 has-[:focus-visible]:outline-offset-2 has-[:focus-visible]:outline-ring">
                         <FileText aria-hidden="true" className="size-4 text-primary" />
                         {a.addDocument}
-                        <input type="file" accept="image/*" onChange={(e) => setDoc(e.target.files?.[0] ?? null)} className="sr-only" />
+                        <input type="file" accept="image/*" onChange={addDoc} className="sr-only" />
                       </label>
                     )}
                     <p className="text-[13px] text-muted-foreground">{a.docsHint}</p>

@@ -49,7 +49,8 @@ export interface Strings {
     addDocument: string;
     remove: string;
     reviewTitle: string;
-    errors: { required: string; household: string; email: string; zip: string; photos: string; tooLarge: string; failed: string };
+    /** `fileType` names the file: "We can’t read {name}. ..." */
+    errors: { required: string; household: string; email: string; zip: string; photos: string; tooLarge: string; fileType: string; failed: string };
   };
   status_page: {
     title: string;
@@ -148,6 +149,7 @@ const en: Strings = {
       zip: "Enter a 5-digit zip code.",
       photos: "Please add at least one photo.",
       tooLarge: "Each file must be under 10 MB.",
+      fileType: "We can’t read {name}. Please send it as a JPEG or PNG photo. iPhone HEIC photos are not supported yet.",
       failed: "Something went wrong. Please try again.",
     },
   },
@@ -258,6 +260,7 @@ const es: Strings = {
       zip: "Ingrese un código postal de 5 dígitos.",
       photos: "Agregue al menos una foto.",
       tooLarge: "Cada archivo debe pesar menos de 10 MB.",
+      fileType: "No pudimos leer {name}. Envíelo como foto JPEG o PNG. Las fotos HEIC del iPhone todavía no son compatibles.",
       failed: "Algo salió mal. Inténtelo de nuevo.",
     },
   },

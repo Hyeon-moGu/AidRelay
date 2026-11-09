@@ -1,5 +1,5 @@
 import { randomBytes } from "node:crypto";
-import { Timestamp } from "firebase-admin/firestore";
+import { FieldValue, Timestamp } from "firebase-admin/firestore";
 import { assertAgentStatusWrite } from "@/lib/agent/guardrails";
 import type { CaseStatus } from "@/lib/agent/schema";
 import { assertTransition } from "@/lib/agent/transitions";
@@ -153,20 +153,34 @@ export async function resetStaleEvaluating(nowMs = Date.now()): Promise<string[]
   return stuck.map((c) => c.id);
 }
 
-/** Field update without a status change, audited. */
-export async function updateCase(id: string, patch: Partial<Omit<CaseDoc, "id">>, audit: CaseAudit): Promise<void> {
+/** Fields `updateCase` may remove from a case. */
+export type ClearableCaseField = "applicantMessage" | "dupMatches";
+
+/**
+ * Field update without a status change, audited. `clear` removes fields: an `undefined` in `patch` is
+ * skipped by the merge (ignoreUndefinedProperties), so it never deletes anything.
+ */
+export async function updateCase(
+  id: string,
+  patch: Partial<Omit<CaseDoc, "id">>,
+  audit: CaseAudit,
+  opts: { clear?: readonly ClearableCaseField[] } = {},
+): Promise<void> {
   const db = getDb();
   const ref = db.collection(col.cases).doc(id);
+  const cleared = opts.clear ?? [];
   await db.runTransaction(async (tx) => {
     const snap = await tx.get(ref);
     if (!snap.exists) throw new Error(`case ${id} not found`);
-    tx.set(ref, patch, { merge: true });
+    const write: Record<string, unknown> = { ...patch };
+    for (const field of cleared) write[field] = FieldValue.delete();
+    tx.set(ref, write, { merge: true });
     auditInTx(tx, {
       actor: audit.actor,
       caseId: id,
       action: audit.action,
       policyClause: audit.policyClause,
-      after: summarize(patch),
+      after: cleared.length ? { ...summarize(patch), cleared: [...cleared] } : summarize(patch),
       reason: audit.reason,
     });
   });
