@@ -1,6 +1,7 @@
 import { FieldValue, Timestamp } from "firebase-admin/firestore";
 import { col, getDb } from "@/lib/db/firestore";
 import type { AgentRunDoc, ToolCallRecord } from "@/lib/db/types";
+import { scrubPii } from "@/lib/ledger/anonymize";
 
 export async function startRun(trigger: string, meta: { caseId?: string; orderId?: string; eventId?: string }): Promise<string> {
   const ref = getDb().collection(col.agentRuns).doc();
@@ -35,7 +36,8 @@ export async function finishRun(
     .collection(col.agentRuns)
     .doc(runId)
     .update({
-      summary: result.summary.slice(0, 4000),
+      // The model writes most summaries: stored without contact details, like every other text the agent writes.
+      summary: scrubPii(result.summary).slice(0, 4000),
       status: result.status,
       ...(result.cost ? { cost: result.cost } : {}),
       ...(result.error ? { error: result.error.slice(0, 1000) } : {}),

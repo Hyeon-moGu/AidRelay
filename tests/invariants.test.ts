@@ -24,7 +24,7 @@ describe("state machine invariants (AGENTS.md §1 rules 2 and 7), every pair", (
       if (allowed) expect(to === "paying" || to === "parked" || (from === "parked" && to === "approved"), `${from}→${to}`).toBe(true);
     }
   });
-  it("only the system settles money: nobody else moves a case into or out of paying, or into paid", () => {
+  it("only the system settles money: nobody else moves a case out of paying or paid, or into paid (the agent may only start a payment)", () => {
     for (const actor of ["agent", "human:ops"] as const) {
       for (const [from, to] of pairs) {
         if (to === "paid" || from === "paying" || from === "paid") expect(canTransition(actor, from, to), `${actor} ${from}→${to}`).toBe(false);

@@ -116,7 +116,7 @@ describe("POST /api/donate/capture-order", () => {
     expect((await getFund()).raisedCents).toBe(2_000);
   });
 
-  it("never counts a capture in another currency as US cents (raisedCents is USD)", async () => {
+  it("never counts a capture of an order /donate did not create, whatever its currency (the next test covers currency itself)", async () => {
     vi.mocked(captureOrder).mockResolvedValueOnce(order("O-JPY", "JPY", "2000") as never);
     await post("O-JPY");
     expect((await getFund()).raisedCents, "¥2,000 must not become $2,000").toBe(0);

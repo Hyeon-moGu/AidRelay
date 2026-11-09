@@ -254,7 +254,12 @@ export function buildTools(ctx: RunContext): ToolSet {
                   reason: `the two evaluations disagree: ${decision.eligibility}/tier ${decision.tier} vs ${second.eligibility}/tier ${second.tier}`,
                 };
               } else {
-                decision = { ...decision, confidence: Math.min(decision.confidence, second.confidence) };
+                // Agreement on the verdict is not enough: a red flag either evaluation raised stands (P-9.5).
+                decision = {
+                  ...decision,
+                  confidence: Math.min(decision.confidence, second.confidence),
+                  redFlags: [...new Set([...decision.redFlags, ...second.redFlags])],
+                };
                 next = decideStatus(decision, amount, ctx.limits, decideCtx);
               }
             }
@@ -395,11 +400,21 @@ export function buildTools(ctx: RunContext): ToolSet {
             // reservation and all): that is not a refusal, just nothing left to do.
             const latest = await getCase(c.id);
             if (latest && inPayment(latest)) return alreadyInPayment(latest);
-            if (latest?.status === "approved") {
-              await setCaseStatus(c.id, "parked", { actor: "agent", action: "case.parked", policyClause: "P-8", reason: "a case ahead of it in the P-8 order still needs the balance" }).catch(async (err) => {
+            if (latest?.status === "approved" || latest?.status === "parked") {
+              // A parked case gives its reservation back: held, it would keep the case ahead of it from reserving.
+              try {
+                await releaseIfReserved(latest, "parked: a case ahead of it in the P-8 order needs the balance");
+              } catch (err) {
                 const again = await getCase(c.id);
-                if (!(again && inPayment(again))) throw err;
-              });
+                if (again && inPayment(again)) return alreadyInPayment(again);
+                throw err;
+              }
+              if (latest.status === "approved") {
+                await setCaseStatus(c.id, "parked", { actor: "agent", action: "case.parked", policyClause: "P-8", reason: "a case ahead of it in the P-8 order still needs the balance" }).catch(async (err) => {
+                  const again = await getCase(c.id);
+                  if (!(again && inPayment(again))) throw err;
+                });
+              }
             }
             const now = await getCase(c.id);
             if (now && inPayment(now)) return alreadyInPayment(now);
@@ -577,6 +592,13 @@ export async function planWaitingCases(): Promise<WaitingPlan> {
   // waiting for funds (a human-approved case may be parked; it stays approved by its human).
   const parkedNow: string[] = [];
   for (const p of plan.park) {
+    // A case the money cannot reach gives its reservation back, so the cases ahead of it can reserve.
+    const held = await getCase(p.id);
+    if (held && (held.reservedCents ?? 0) > 0) {
+      await releaseIfReserved(held, `parked: the balance does not reach it in P-8 order`).catch((err) =>
+        console.warn(`[tools] could not release ${p.id}:`, err instanceof Error ? err.message : err),
+      );
+    }
     if (p.status !== "approved") continue;
     try {
       await setCaseStatus(p.id, "parked", {

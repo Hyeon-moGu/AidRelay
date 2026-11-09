@@ -233,7 +233,7 @@ export function normalizeDecision(d: Decision): Decision {
       .map((r) => ({ clause: normalizeClause(r.clause), evidence: scrubPii(r.evidence.trim()).slice(0, 300) }))
       .filter((r) => r.evidence.length > 0),
     redFlags: [...new Set(d.redFlags)],
-    followUpQuestions: d.followUpQuestions.map((q) => q.trim()).filter((q) => q.length > 0),
+    followUpQuestions: d.followUpQuestions.map((q) => scrubPii(q.trim())).filter((q) => q.length > 0),
     applicantLanguage: normalizeLang(d.applicantLanguage),
     // Cut to 140 characters only in applyCodeRules, after the name and address are gone.
     ledgerSummary: scrubPii(d.ledgerSummary.trim()).slice(0, 1000),
@@ -259,7 +259,9 @@ export function applyCodeRules(decision: Decision, c: CaseDoc, dupMatches: DupMa
     if (m.by.includes("address")) flags.add("duplicate_address");
     if (m.by.includes("contact")) flags.add("duplicate_contact");
   }
-  if (!isInsideDeclaredArea(c.zip)) flags.add("zip_outside_declared_area");
+  // P-2 is decided in code from the zip, in both directions: the model's own zip flag never stands.
+  if (isInsideDeclaredArea(c.zip)) flags.delete("zip_outside_declared_area");
+  else flags.add("zip_outside_declared_area");
   if (isAmountOutlier(c.requestedAmountCents)) flags.add("amount_outlier");
   if (detectInstructionInjection(c.narrative).length > 0) flags.add("instruction_in_narrative");
   // Writing inside a photo reaches the decision through the pre-screen's descriptions: scanned the same way.

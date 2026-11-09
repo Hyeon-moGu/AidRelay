@@ -130,3 +130,23 @@ describe("evaluate_case and an address outside the declared area (P-2)", () => {
     expect(stored?.redFlags).toContain("zip_outside_declared_area");
   });
 });
+
+describe("evaluate_case and the second evaluation's red flags (P-9.5, P-9.9)", () => {
+  it("a red flag only the second evaluation raised still sends the case to a volunteer", async () => {
+    let decisionCalls = 0;
+    vi.mocked(generateObject).mockImplementation((async (args: { system?: string }) => {
+      if (args.system) return { object: { photos: [{ index: 0, usable: true, description: "standing water" }] }, usage: {} };
+      decisionCalls += 1;
+      // Same verdict and tier both times, so the two "agree"; only the second one sees the mismatch.
+      return { object: decisionCalls === 1 ? decision(2) : { ...decision(2), redFlags: ["evidence_mismatch"] }, usage: {} };
+    }) as unknown as typeof generateObject);
+    await seedCase("C-NEW", T0);
+
+    const result = await evaluate("C-NEW");
+
+    expect(result).toMatchObject({ status: "needs_review", clause: "P-3" });
+    const c = await getCase("C-NEW");
+    expect(c?.secondEvaluationAgrees).toBe(true);
+    expect(c?.redFlags).toContain("evidence_mismatch");
+  });
+});

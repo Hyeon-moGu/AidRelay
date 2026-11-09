@@ -169,3 +169,29 @@ describe("escalate", () => {
     expect(row?.reason).toBe("Same photo as C-003, so the agent cannot pay; Red flags: duplicate_photo_hash");
   });
 });
+
+describe("the payout claim reads the amount again", () => {
+  it("refuses an amount a volunteer has corrected while the call was on its way", async () => {
+    const { createPayoutForCase } = await import("@/lib/db/repos/payouts");
+    await seedAutoCase("C-H", "approved");
+    // Reserved for $250, as the agent read it; a volunteer then sets $100 (the inline edit) before the claim.
+    await db.collection("cases").doc("C-H").update({ reservedCents: AMOUNT, humanDecision: { approved: true, by: "human:ops", amountCents: 10_000, at: Timestamp.now() } });
+
+    const call = createPayoutForCase({ caseId: "C-H", amountCents: AMOUNT, currency: "USD", recipientEmail: "r@example.test", note: "n", actor: "agent", policyClause: "P-9", reason: "x", autoApproved: false });
+
+    await expect(call).rejects.toThrow(/now for 10000 cents/);
+    expect(vi.mocked(createPayout)).not.toHaveBeenCalled();
+    expect(db.all("payouts")).toHaveLength(0);
+  });
+
+  it("never pays as unattended a case a volunteer approved in the meantime", async () => {
+    const { createPayoutForCase } = await import("@/lib/db/repos/payouts");
+    await seedAutoCase("C-V", "approved");
+    await db.collection("cases").doc("C-V").update({ reservedCents: AMOUNT, humanDecision: { approved: true, by: "human:ops", amountCents: AMOUNT, at: Timestamp.now() } });
+
+    const call = createPayoutForCase({ caseId: "C-V", amountCents: AMOUNT, currency: "USD", recipientEmail: "r@example.test", note: "n", actor: "agent", policyClause: "P-9", reason: "x", autoApproved: true });
+
+    await expect(call).rejects.toThrow(/approved by a volunteer/);
+    expect(db.all("auto_approvals")).toHaveLength(0);
+  });
+});

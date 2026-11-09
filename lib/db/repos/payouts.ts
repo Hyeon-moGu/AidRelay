@@ -69,6 +69,14 @@ export async function createPayoutForCase(args: CreatePayoutArgs): Promise<Payou
     if ((c.reservedCents ?? 0) !== args.amountCents) {
       throw new Error(`case ${args.caseId} has ${c.reservedCents ?? 0} reserved, payout asks ${args.amountCents}`);
     }
+    // The amount is read again here: a volunteer who corrected it while this call was on its way wins.
+    const current = amountForCase(c);
+    if (current !== null && current !== args.amountCents) {
+      throw new Error(`case ${args.caseId} is now for ${current} cents, payout asks ${args.amountCents}`);
+    }
+    if (args.autoApproved && c.humanDecision?.approved) {
+      throw new Error(`case ${args.caseId} was approved by a volunteer in the meantime; it is paid on that approval`);
+    }
     if (args.autoApproved && args.velocity) {
       const since = Timestamp.fromMillis(now.toMillis() - 86_400_000);
       const recent = await tx.get(db.collection(col.autoApprovals).where("at", ">=", since));
