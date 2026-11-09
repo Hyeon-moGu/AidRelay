@@ -31,7 +31,7 @@ Everything on it runs for real on the PayPal sandbox and Claude.
 | Donor | `sb-e3oaw53770647@personal.example.com` | `3Y@}L@Zk` | pay on `/donate` |
 | Recipient (case C-001) | `aidrelay-r1-f2b7@aidrelay-mail.com` | `q6MxhW6G#z` | see the grant the agent paid in the demo video |
 
-Applying twice with the same email, address or photo sends the second application to human review (duplicate check, policy P-4).
+Applying twice with the same email, address or photo sends the second application to human review (duplicate check, policy P-4). That includes the recipient account above, which case C-001 already uses, so apply with a different email.
 
 ## The problem
 
@@ -73,17 +73,18 @@ The agent is event-driven:
 - **A new application** (`case.created`): check for duplicates, evaluate the photos and story against the policy, then pay, ask the applicant a follow-up question, or hand the case to a human with reasons.
 - **A donation** (`donation.captured`): pay the cases that were waiting for funds, highest tier first, then first come (policy P-8).
 - **A volunteer's approval** (`operator.command`): pay the approved cases in the same order, or park them until the fund has the money.
-- **A sweep** (`pnpm agent:sweep`): pick up anything still waiting and check payouts whose webhook is late.
+- **A sweep** (`pnpm agent:sweep` by hand, or every few minutes from Cloud Scheduler, set up by `scripts/schedule-sweep.sh`): pick up anything a lost trigger left behind, pay waiting cases the balance now covers and check payouts whose webhook is late. A sweep that finds nothing calls no model and records no run.
 
-Payout webhooks are reconciled in code by the webhook route, without a model call: success marks the case paid, a failure releases the reserved money and sends the case to a human.
+Payout webhooks are reconciled in code by the webhook route, without a model call: success marks the case paid, a failure releases the reserved money and sends the case to a human. Updates that change nothing (a batch moving to `PROCESSING`) are stored with the payout and kept out of the activity feed.
 
 **The agent may approve. It may never reject.** Doubtful or ineligible cases go to the human queue with the agent's reasoning attached. The limits live in [`policy.md`](policy.md), written by the fund's humans and published at `/policy`, and they are enforced in code, not only in the prompt:
 
 - It pays on its own only when all ten conditions in policy P-9 hold, among them: eligible, at most $250, confidence at least 0.85, no red flags, money available, usable evidence on file, a second independent evaluation that agrees, and inside the P-10 automation limits (20 grants per hour, $5,000 per day). See `lib/agent/guardrails.ts`.
 - Amounts come from the policy's tiers, never from the model. A human-set amount is capped by P-7.
-- One payout per case, idempotent: the Payouts `sender_batch_id` is derived from the case id, and money is reserved before any payout, so the fund never overdraws.
+- One payout per case, idempotent: the Payouts `sender_batch_id` is derived from the case id, and money is reserved before any payout, so the fund never overdraws. If PayPal does not accept a payout, the case keeps its reservation and the agent does not try again on its own; a volunteer sends the same request again from `/ops`, with the same `sender_batch_id`, so the family still cannot be paid twice.
+- The payment order (P-8) is computed in code, for new applications too: a new case is paid at once only if the plan would pay it ahead of the cases already waiting.
 - Every status change goes through a per-actor state machine (`lib/agent/transitions.ts`): the agent cannot write `rejected`, cannot move a paid case and cannot override a human decision.
-- The applicant's story is untrusted data: delimited in the prompt and scanned for instructions. Emails and phone numbers are scrubbed from everything the agent writes, and nothing personal reaches the ledger.
+- The applicant's story is untrusted data: delimited in the prompt and scanned for instructions. Emails and phone numbers are scrubbed from everything the agent writes, and the applicant's own name and street address are removed, in code, from the one line that reaches the ledger.
 - Every tool call is recorded and shown live in the `/ops` activity feed, and every change it makes to a case or the fund is written to the audit log with the policy clause it relied on.
 
 ## PayPal APIs and AI models used
@@ -91,7 +92,7 @@ Payout webhooks are reconciled in code by the webhook route, without a model cal
 | | Used for |
 |---|---|
 | **PayPal Orders API** | Donations: create and capture (`/v2/checkout/orders`). The capture response and the `PAYMENT.CAPTURE.COMPLETED` webhook both record the gift; whichever lands first counts it, the other is a no-op. |
-| **PayPal Payouts API** | Grants: `POST /v1/payments/payouts`, one batch per case with an idempotent `sender_batch_id`; `GET` on the batch as a backstop when a webhook is late. |
+| **PayPal Payouts API** | Grants: `POST /v1/payments/payouts`, one batch per case with an idempotent `sender_batch_id`; `GET` on the batch, on every sweep, as a backstop when a webhook is late. |
 | **PayPal Webhooks** | Every event is verified with `/v1/notifications/verify-webhook-signature`, claimed once by event id (redeliveries are no-ops) and handled before PayPal gets its 200. |
 | **PayPal JS SDK** | The donate button (`/sdk/js` Buttons). |
 | **Claude Sonnet 5.5** | The Case Officer's agent loop (tool use through the Vercel AI SDK) and the multimodal decision on each case, returned as a schema-validated `Decision`. The policy and system prompt are prompt-cached. |
@@ -101,7 +102,7 @@ Also: Next.js 15 (App Router), Firestore, Google Cloud Storage, Cloud Run, AG Gr
 
 ## How the public ledger uses AG Studio
 
-`/ledger` is one AG Studio report in view mode, built from the anonymized ledger (no names, addresses or contacts ever reach it) and kept live: the page re-reads `/api/ledger` every 10 seconds, so a donation and the payouts it unlocks appear while you watch.
+`/ledger` is one AG Studio report in view mode, built from the anonymized ledger (a zip prefix, no contact details, and a one-line summary with the applicant's name and address removed) and kept live: the page re-reads `/api/ledger` every 10 seconds, so a donation and the payouts it unlocks appear while you watch.
 
 - **Two custom widgets** (`app/ledger/studio-widgets.tsx`), registered with `createWidgets({ additionalTypes, overrides })`:
   - **Where the money is** (`fund-progress`): raised, paid, on its way, waiting for funds and not yet granted as one bar. It reads its numbers with `widgetApi.getData(..., { crossFilter: "highlight" })`, so selecting anything else in the report fades the bar and keeps the selected share solid ("Your selection: $1,750 paid to 5 households, 35% of everything paid so far"). When approved families are waiting, it says how much would pay them and links to `/donate`.
@@ -116,7 +117,7 @@ Also: Next.js 15 (App Router), Firestore, Google Cloud Storage, Cloud Run, AG Gr
 
 - **A custom agent talking to Studio's built-in agents.** Our *Ledger auditor* (`app/ops/audit/audit-studio.tsx`, a `directLlmRunner` with `view_schema`, `execute_query`, `view_report`, `view_widget` and `delegate_to`) is the primary agent. For charts it delegates to Studio's own *page* agent (adds the widget) and *widget* agent (maps the fields), then reads the widget back to confirm it shows data.
 - **A swapped-in model.** Studio takes the model from an adapter you supply; every turn of every agent goes through our `AgLlmAdapter` (`app/ops/audit/claude-adapter.ts`) to `/api/ops/ask`, which runs Claude Haiku 5.5 through the Vercel AI SDK and streams Studio's AG-UI events back (`lib/ops/llm-bridge.ts`). The bridge also repairs the small argument mistakes a fast model makes (an object sent as a JSON string, a stray bracket) so a call is not wasted on a validation error.
-- **Safe by construction.** The model only proposes tool calls; Studio runs them in the browser on the same anonymized tables as `/ledger`, so no name, address or contact detail can reach the model. The auditor cannot approve, pay or change anything, charts it adds stay in that browser tab, the Anthropic key never leaves the server, and the route refuses anyone who is not signed in as an operator, caps request size and limits how many model turns it will run.
+- **Safe by construction.** The model only proposes tool calls; Studio runs them in the browser on the same anonymized tables as `/ledger`, so the model sees no contact details and no applicant names or addresses. The auditor cannot approve, pay or change anything, charts it adds stay in that browser tab, the Anthropic key never leaves the server, and the route refuses anyone who is not signed in as an operator, caps request size and limits how many model turns it will run.
 
 ```
  AI panel (AG Studio, edit mode)
@@ -141,11 +142,20 @@ pnpm seed --placeholders    # the fund and 22 fictional cases; gray placeholders
 pnpm dev            # http://localhost:3000
 ```
 
+The seed photos are not in the repository. With `--placeholders` every seeded case therefore comes back as `needs_info`, because the agent cannot see damage in a gray placeholder; to watch an automatic payout locally, apply on `/apply` with a real photo, or put your own images in `seed/photos` under the names `seed/cases.json` lists.
+
 Then donate on `/donate` as your sandbox donor and run `pnpm agent:sweep` to let the Case Officer work through the queue. Donations are never seeded: an Orders capture needs the donor's approval in a browser, and the ledger only shows real sandbox captures. [`seed/README.md`](seed/README.md) describes the seed cases, the photos and the demo arithmetic.
 
 Webhooks in development: expose port 3000 (for example with ngrok) and register `${APP_URL}/api/webhooks/paypal` in the PayPal developer dashboard.
 
-Tests: `pnpm typecheck && pnpm lint && pnpm test` (guardrails, the status state machine, evaluation rules, duplicate photos, allocation, payouts, PayPal events, the ledger's anonymization, the auditor's model bridge and the seed data).
+Tests: `pnpm typecheck && pnpm lint && pnpm test` (guardrails, the status state machine, evaluation rules, duplicate photos, allocation, payouts and payout retries, PayPal events, applicant intake, operator decisions, what a sweep records, the ledger's anonymization, the auditor's model bridge and the seed data).
+
+## Known limits
+
+- **Evidence is a photo and a story, not an identity check.** What the agent can lose is capped in code instead: at most $250 per payout it makes on its own, 20 such payouts an hour and $5,000 a day (P-9, P-10), one payout per case, and anything that repeats a photo, an address or a contact goes to a volunteer.
+- **PayPal's fees are not on the ledger yet.** *Raised* is what donors gave; the fees PayPal charges the fund (for example on each payout) are not subtracted, so the fund's real PayPal balance is lower than *Available*.
+- **A refunded or disputed donation** is recorded but not taken out of *Raised*.
+- **A payout that fails after PayPal accepted it** (failed, returned, or unclaimed for 30 days) gives its money back to the fund and returns to a volunteer, but it cannot be issued a second time from the console yet.
 
 ## Non-goals
 
