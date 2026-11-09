@@ -80,8 +80,8 @@ export default async function PolicyPage() {
             </h2>
             <ul className="grid gap-x-10 gap-y-8 md:grid-cols-2">
               <Rule icon={MapPin} title="Who can get help">
-                Any household whose home is in the declared flood area, which covers every zip code starting with {POLICY.areaZipPrefix}. One photo or
-                document of the damage is enough to apply, and each household can be helped once.
+                Any household whose home is in the declared flood area, which covers every zip code starting with {POLICY.areaZipPrefix}. One photo of
+                the damage is enough to apply, and each household can be helped once.
               </Rule>
               <Rule icon={UserCheck} title="When a volunteer steps in">
                 The AI case officer pays on its own only when the grant is {moneyWhole(autoLimit)} or less, nothing about the case looks wrong, and a second,
@@ -96,13 +96,13 @@ export default async function PolicyPage() {
                 without a person. Beyond that, cases wait for a volunteer.
               </Rule>
               <Rule icon={ShieldBan} title="What the AI case officer can never do">
-                Turn an application down, pay the same household twice or spend money the fund does not have. Those checks run in code, outside its
-                reach.
+                Turn an application down, pay the same application twice or spend money the fund does not have, and a second application with the
+                same photo, address or contact always goes to a volunteer. Those checks run in code, outside its reach.
               </Rule>
               <Rule icon={EyeOff} title="What stays private">
                 The public ledger shows the first three digits of a zip code, the level of need, the amount and a one-line summary.{" "}
                 {getEnv().OPS_PUBLIC_VIEW
-                  ? "Names, addresses and contact details are never published. In this demo the staff console is open to look at, so photos and applicants’ words can be seen there. A real fund keeps them behind the sign-in."
+                  ? "Names, addresses and contact details are never published. In this demo the staff console is open to look at, so photos and applicants’ words can be seen there; documents such as a proof of address stay behind the sign-in. A real fund keeps everything behind it."
                   : "Names, addresses, contact details and photos are never published."}
               </Rule>
             </ul>

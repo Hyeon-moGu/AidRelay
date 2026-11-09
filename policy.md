@@ -51,7 +51,7 @@ Editing the wording changes how the agent judges a case. The amounts, the declar
 ## 7. Privacy
 - The public ledger shows: zip prefix (3 digits), tier, amount, PayPal batch ID, a one-line AI summary with no names, addresses, contact details or health information, and whether a human reviewed the case.
 - Contact details (name, email, phone, street address) are never public.
-- Photos and the applicant's own words are for the fund's volunteers. In this demo the staff console is open to look at, so anyone can see both there, with contact details hidden; nothing can be changed without the staff sign-in. A real fund keeps the whole console behind the sign-in.
+- Photos and the applicant's own words are for the fund's volunteers. In this demo the staff console is open to look at, so anyone can see both there, with contact details hidden; documents an applicant sends (such as a proof of address) stay behind the staff sign-in, and nothing can be changed without it. A real fund keeps the whole console behind the sign-in.
 
 ## 8. Change log
 - v1, initial demo policy.
