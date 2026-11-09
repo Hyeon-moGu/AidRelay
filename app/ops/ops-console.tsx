@@ -4,13 +4,13 @@
 // Humans approve, reject and ask; the agent pays. Every action here lands in audit_log as human:ops.
 // In the open demo a visitor sees the same screen without signing in (`canAct` false): the buttons ask them to
 // sign in, and the server refuses the action anyway.
-import { Eye, LogIn, LogOut, RefreshCw, Sparkles } from "lucide-react";
+import { Eye, LogIn, RefreshCw } from "lucide-react";
 import dynamic from "next/dynamic";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { GridApi } from "ag-grid-community";
-import { Brand } from "@/components/site/brand";
+import { SiteHeader } from "@/components/site/site-header";
 import { STATUS_LABEL } from "@/components/status-badge";
 import { Button } from "@/components/ui/button";
 import { fieldClass } from "@/components/ui/input";
@@ -192,11 +192,6 @@ export function OpsConsole({ licenseKey, canAct }: { licenseKey: string; canAct:
     }
   }
 
-  async function signOut() {
-    await fetch("/api/ops/login", { method: "DELETE" });
-    router.replace("/ops/login");
-  }
-
   const counts = useMemo(() => {
     const c: Record<string, number> = {};
     for (const r of rows) c[r.status] = (c[r.status] ?? 0) + 1;
@@ -205,45 +200,22 @@ export function OpsConsole({ licenseKey, canAct }: { licenseKey: string; canAct:
 
   return (
     <div className="flex min-h-dvh flex-col">
-      <header className="sticky top-0 z-40 border-b border-border/70 bg-background/90 backdrop-blur-sm">
-        <div className="mx-auto flex h-14 max-w-[1600px] items-center gap-3 px-4">
-          <Brand href="/ops" suffix="Staff console" />
-          <nav className="ml-auto flex items-center gap-1">
-            <Link
-              href="/ops/audit"
-              title={canAct ? undefined : "Ask the ledger needs the staff sign-in"}
-              className="inline-flex items-center gap-1.5 rounded-md bg-accent px-2.5 py-1.5 text-sm font-medium whitespace-nowrap text-accent-foreground hover:bg-accent/80"
-            >
-              <Sparkles aria-hidden="true" className="size-4" />
-              Ask the ledger
-            </Link>
-            <Link href="/ledger" className="hidden rounded-md px-2.5 py-1.5 text-sm font-medium whitespace-nowrap text-muted-foreground hover:text-foreground sm:block">
-              Public ledger
-            </Link>
-            {canAct ? (
-              <Button variant="ghost" size="sm" onClick={signOut}>
-                <LogOut aria-hidden="true" />
-                Sign out
-              </Button>
-            ) : (
-              <Link href="/ops/login" className="inline-flex items-center gap-1.5 rounded-md px-2.5 py-1.5 text-sm font-medium whitespace-nowrap text-muted-foreground hover:text-foreground">
-                <LogIn aria-hidden="true" className="size-4" />
-                Sign in
-              </Link>
-            )}
-          </nav>
-        </div>
-      </header>
+      {/* The site's own header, with the two staff links added: the way back to the public pages is always there. */}
+      <SiteHeader staff={canAct ? "operator" : "viewer"} />
 
       <main id="main" className="mx-auto w-full max-w-[1600px] flex-1 space-y-4 px-4 py-5">
         {!canAct && (
           <aside aria-label="About this demo" className="flex flex-wrap items-start gap-x-4 gap-y-3 rounded-xl border border-border bg-accent/60 p-4 text-sm">
             <Eye aria-hidden="true" className="mt-0.5 size-5 shrink-0 text-accent-foreground" />
-            <p className="min-w-0 flex-1 basis-80 leading-relaxed">
-              <span className="font-semibold">Open demo, view only.</span> This is the console the fund’s volunteers use to supervise the AI case officer. Anyone can
-              look around: applicants’ contact details are hidden and nothing can be changed. Approving, rejecting, asking and sending payouts need the staff
-              password from the testing instructions. A real fund keeps this whole page behind the sign-in.
-            </p>
+            <div className="min-w-0 flex-1 basis-80 space-y-1 leading-relaxed">
+              <p>
+                <span className="font-semibold">Demo version, view only.</span> A real fund keeps this page behind the staff sign-in.
+              </p>
+              <p className="text-muted-foreground">
+                Approving, rejecting and sending payouts run the AI and PayPal for real, so they need the staff password. It is in the Devpost testing
+                instructions.
+              </p>
+            </div>
             <Link
               href="/ops/login"
               className="inline-flex h-9 shrink-0 items-center gap-1.5 rounded-md bg-primary px-3.5 text-sm font-medium text-primary-foreground hover:bg-primary/90"
