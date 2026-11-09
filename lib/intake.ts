@@ -150,6 +150,15 @@ export async function submitReply(token: string, text: string, photos: UploadedF
   return updated;
 }
 
+/** The request's form, or a 400 when the body is not one (a JSON post, an empty body). */
+export async function readForm(req: Request): Promise<FormData> {
+  try {
+    return await req.formData();
+  } catch {
+    throw new HttpError(400, "send the application as a form (multipart/form-data)");
+  }
+}
+
 /** Reads multipart form data into validated fields and file buffers. */
 export async function readMultipart(form: FormData): Promise<{ fields: Record<string, string>; photos: UploadedFile[]; docs: UploadedFile[] }> {
   const fields: Record<string, string> = {};

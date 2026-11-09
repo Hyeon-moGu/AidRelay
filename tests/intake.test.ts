@@ -27,7 +27,7 @@ import { enqueueAgentRun } from "@/lib/agent/trigger";
 import { createCase, getCase } from "@/lib/db/repos/cases";
 import type { CaseDoc } from "@/lib/db/types";
 import { HttpError } from "@/lib/http";
-import { ApplicationSchema, submitApplication, submitReply, type UploadedFile } from "@/lib/intake";
+import { ApplicationSchema, readForm, submitApplication, submitReply, type UploadedFile } from "@/lib/intake";
 import { uploadObject } from "@/lib/storage/gcs";
 
 let db: FakeFirestore;
@@ -96,6 +96,16 @@ describe("submitApplication files", () => {
     expect(err.message).toContain("broken.jpg");
     expect(uploadObject).not.toHaveBeenCalled();
     expect(db.all("cases")).toHaveLength(0);
+  });
+});
+
+describe("readForm", () => {
+  it("answers 400 to a body that is not a form, and reads one that is", async () => {
+    const json = new Request("http://localhost/api/apply", { method: "POST", headers: { "Content-Type": "application/json" }, body: "{}" });
+    await expect(readForm(json)).rejects.toMatchObject({ status: 400 });
+    const form = new FormData();
+    form.set("zip", "28501");
+    expect((await readForm(new Request("http://localhost/api/apply", { method: "POST", body: form }))).get("zip")).toBe("28501");
   });
 });
 
