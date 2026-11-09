@@ -42,7 +42,6 @@ next-env.d.ts
 
 # AidRelay
 seed/accounts.json
-seed/photos/
 !.env.example
 service-account.json
 seed/sandbox-accounts.csv

@@ -7,8 +7,8 @@ Everything here is fictional: Cedar County, Cedar Falls, every name, address, an
 - `accounts.example.json`, template for the sandbox account mapping. Copy to `accounts.json` (git-ignored). Every case pays to its own account: policy P-4 flags a repeated contact, so two cases sharing one payout email would be treated as one household.
 - `photos/`, one image per hand-crafted photo and document path (C-004's pharmacy list too), plus `photos/pool/` with 12 distinct images for the bulk cases, named `tier2_clean-01.jpg` … `tier2_clean-08.jpg` and `tier3_displaced-01.jpg` … `tier3_displaced-04.jpg`.
 
-## Making the photos (Day 2, ~1 hour)
-The agent is multimodal: placeholder images will make it answer `needs_info` for everything. Use the `_photoBrief` text in `cases.json` as the prompt for an image model. Suggested: **Vertex AI Imagen** on the GCP credits (one batch job, ~22 images), or any image generator you have. Rules:
+## The photos
+The 28 images in `photos/` are in the repository, so `pnpm seed` runs the real decision path out of the box. They are generated, not photographs of a real disaster. The agent is multimodal: placeholder images make it answer `needs_info` for everything. To replace an image, use the `_photoBrief` text in `cases.json` as the prompt for an image model and keep the file name. Rules:
 - No people, no faces, no license plates, no real agency logos or brand names.
 - `C-009` must reuse the exact file `photos/C-003-house-windows.jpg` (this is how the duplicate detector is demonstrated).
 - Bulk pool images must all be different (dedupe compares perceptual hashes).

@@ -218,11 +218,11 @@ pnpm install
 cp .env.example .env                               # PayPal sandbox app, Anthropic key, GCP project and bucket
 cp seed/accounts.example.json seed/accounts.json   # your sandbox account emails
 pnpm check          # is every service reachable? (PayPal token, Payouts, webhook, Firestore, GCS, Anthropic)
-pnpm seed --placeholders    # the fund and 22 fictional cases; gray placeholders for photos not in seed/photos
+pnpm seed           # the fund and 22 fictional cases, with the generated photos in seed/photos
 pnpm dev            # http://localhost:3000
 ```
 
-The seed photos are not in the repository. With `--placeholders` the seeded cases therefore wait for people instead of being paid: most come back as `needs_info`, because the agent cannot see damage in a gray placeholder, and the ones with a red flag (C-009 reuses C-003's photo, C-010 asks for far more than any grant) go to `needs_review` as usual. To watch an automatic payout locally, apply on `/apply` with a real photo, or put your own images in `seed/photos` under the names `seed/cases.json` lists.
+The photos in `seed/photos` are generated images of a fictional county: no real disaster, no people. With them the Case Officer decides the seeded cases the way the demo shows, paying the eligible ones once the fund has money. `pnpm seed --placeholders` is for a fork that swaps in its own images: a case left with a gray placeholder comes back as `needs_info`, because the agent cannot see damage in it, and the ones with a red flag (C-009 reuses C-003's photo, C-010 asks for far more than any grant) go to `needs_review` as usual.
 
 Then donate on `/donate` as your sandbox donor and run `pnpm agent:sweep` to let the Case Officer work through the queue. Donations are never seeded: an Orders capture needs the donor's approval in a browser, and the ledger only shows real sandbox captures. [`seed/README.md`](seed/README.md) describes the seed cases, the photos and the demo arithmetic.
 
