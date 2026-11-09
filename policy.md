@@ -42,7 +42,7 @@ Editing the wording changes how the agent judges a case. The amounts, the declar
   10. the automation limits in P-10 are not exceeded
 - Anything else → human queue (`needs_review` / `needs_info` / `parked`).
 - **P-10 Automation limits.** Without a human, the agent pays at most **20** grants per rolling hour and at most **$5,000** per rolling 24 hours. Cases beyond these limits wait in the human queue.
-- **The agent may never set `rejected`.** Only a named human can. The agent also never overrides a human decision: a case a human approved can only be paid or parked by the agent.
+- **The agent may never set `rejected`.** Only a signed-in volunteer can. The agent also never overrides a human decision: a case a human approved can only be paid or parked by the agent.
 
 ## 6. Communication
 - Follow-up questions and status messages are sent in the applicant's language (EN/ES in demo).

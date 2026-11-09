@@ -25,19 +25,21 @@ Built for the [PayPal AI Hackathon](https://paypalaihackathon.devpost.com/) (Dev
 
 **Hosted demo:** https://aidrelay-545799830947.us-central1.run.app
 
-Everything on it runs for real on the PayPal sandbox and Claude.
+Everything on it runs for real on the PayPal sandbox and Claude. The flood and the seeded applications are a fictional scenario; the donations, the agent's decisions and the payouts on the ledger are real sandbox and model calls.
+
+Judging *Best Use of AG Grid*? Go straight to [AG Grid and AG Studio](#ag-grid-and-ag-studio).
 
 **No account needed:**
 
 1. [`/ledger`](https://aidrelay-545799830947.us-central1.run.app/ledger): the live public ledger, an AG Studio report with every grant and its PayPal payout id. Click any bar, slice or payout to filter the whole report.
 2. [`/policy`](https://aidrelay-545799830947.us-central1.run.app/policy): the rules the AI case officer follows.
-3. [`/apply`](https://aidrelay-545799830947.us-central1.run.app/apply): apply with a zip code that starts with 285 (for example 28501), a photo of water damage and any email. Within about a minute your status link shows the agent's decision: paid, waiting for funds, a follow-up question, or a volunteer's review. An email without a sandbox account still works; PayPal holds the payout and the ledger shows it under *On its way*.
-4. [`/ops`](https://aidrelay-545799830947.us-central1.run.app/ops): the staff console volunteers use to supervise the agent, open to look at in this demo. The review queue grouped by level of need, each case's photos and the agent's reasons, and the live activity feed. Applicants' contact details are hidden and nothing can be changed without signing in.
+3. [`/apply`](https://aidrelay-545799830947.us-central1.run.app/apply): apply with a zip code that starts with 285 (for example 28501), a photo of water damage and any email. Within about a minute your status link shows the agent's decision: paid, waiting for funds, a follow-up question, or a volunteer's review. An email without a sandbox account still works; PayPal holds the payout and the ledger shows it under *On its way*. If your status says *waiting for funds*, the fund is empty: donate as the sandbox donor below and the grant goes out within seconds.
+4. [`/ops`](https://aidrelay-545799830947.us-central1.run.app/ops): the staff console volunteers use to supervise the agent, open to look at in this demo. The review queue grouped by level of need, each case's photos and the agent's reasons, the live activity feed, and the *Ask the ledger* screen (AG Studio in edit mode with its AI panel). Applicants' contact details are hidden, and acting or asking a question needs the sign-in.
 
 **With an account:**
 
 - **Donate** on [`/donate`](https://aidrelay-545799830947.us-central1.run.app/donate) as the sandbox donor below. The ledger shows it within seconds, and a family waiting for funds is paid right away.
-- **Act as a volunteer** on `/ops`: sign in to approve (one case or a whole selection), reject, ask the applicant a question, send a payout again, and open *Ask the ledger*, an auditor built on AG Studio's Agent Framework. The password is in the Devpost testing instructions.
+- **Act as a volunteer** on `/ops`: sign in to approve (one case or a whole selection), reject, ask the applicant a question, send a payout again, and put a question to *Ask the ledger*, an auditor built on AG Studio's Agent Framework. The password is in the Devpost testing instructions.
 - **See money arrive** by logging in as the C-001 recipient on [sandbox.paypal.com](https://www.sandbox.paypal.com).
 
 **Sandbox test accounts:**
@@ -95,6 +97,18 @@ Payout webhooks are reconciled in code by the webhook route, without a model cal
 
 ## What the code enforces
 
+The model judges the case. Code decides everything that moves money:
+
+| The model (Claude) decides | Code decides |
+|---|---|
+| Whether the household is eligible, from the photos and the story | The amount: the grant for the level of need plus the household rule (P-6), capped (P-7) |
+| The level of need, 1 to 4 | Duplicates: the same photo, address or contact as an earlier case (P-4) |
+| How confident it is | Whether the home is inside the declared area (P-2) |
+| Whether a photo contradicts the story | Whether the story, or a request far above any grant, needs a volunteer |
+| The reasons, each with its policy clause and the evidence | Whether all ten auto-approve conditions hold (P-9), including a second, independent evaluation that must agree, and the automation limits (P-10) |
+| Follow-up questions, in the applicant's language | Who is paid first when money is short (P-8) |
+| The one public line on the ledger | Every status change, the reservation of funds and the payout itself |
+
 The limits live in [`policy.md`](policy.md), written by the fund's people and published at `/policy`. They are enforced in code, not only in the prompt:
 
 | Guarantee | Enforced in | Tests |
@@ -124,6 +138,8 @@ The limits live in [`policy.md`](policy.md), written by the fund's people and pu
 
 Also: Next.js 15 (App Router), Firestore, Google Cloud Storage and Cloud Run, where the app is hosted.
 
+The agent's PayPal tools are our own typed functions over REST. PayPal's Agent Toolkit had no Payouts tool when we checked (2026-11-07), and a payout is the one call this project turns on, so the toolkit is not used. The donate button uses the JS SDK Buttons script (`/sdk/js`); moving to the v6 web SDK is left for later.
+
 ## AG Grid and AG Studio
 
 | What the prize looks for | Where it is |
@@ -134,7 +150,7 @@ Also: Next.js 15 (App Router), Firestore, Google Cloud Storage and Cloud Run, wh
 | More than a grid and charts on their own | Every bar, slice and payout cross-filters the other widgets, ours included. |
 | A custom agent talking to Studio's built-in agents | The *Ledger auditor* answers from the tables and hands chart work to Studio's page, widget and data agents (`app/ops/audit/audit-studio.tsx`). |
 | Your own model behind the Agent Framework | Every turn of every agent goes through our `AgLlmAdapter` to Claude Haiku 5.5 (`app/ops/audit/claude-adapter.ts`, `lib/ops/llm-bridge.ts`). |
-| AG Grid Enterprise | The `/ops` review queue: grouped by level of need, bulk selection, inline amount edit. |
+| AG Grid Enterprise | The `/ops` review queue (`app/ops/case-grid.tsx`): row grouping by level of need with group totals, the row group panel (drag *Status* up to regroup the queue), the columns and filters tool panels, set and number filters, and a status bar with our own panel that totals the selected grants before a bulk approval. Plus multi-row selection and inline amount edit. |
 
 ### The public ledger
 
@@ -145,7 +161,7 @@ Also: Next.js 15 (App Router), Firestore, Google Cloud Storage and Cloud Run, wh
 
 ### Ask the ledger
 
-`/ops/audit` opens the same report in edit mode with Studio's AI panel, for signed-in volunteers. A volunteer asks in plain English ("Which grants did the AI case officer approve without a volunteer?", "Add a chart comparing how fast the AI and volunteers get money to families"). The answer is computed from the tables, with case ids and PayPal payout ids as evidence, or it is a new chart on the dashboard.
+`/ops/audit` opens the same report in edit mode with Studio's AI panel. In this demo anyone can open it and change the report by hand; asking needs the staff sign-in, because every question is a real model call. A volunteer asks in plain English ("Which grants did the AI case officer approve without a volunteer?", "Add a chart comparing how fast the AI and volunteers get money to families"). The answer is computed from the tables, with case ids and PayPal payout ids as evidence, or it is a new chart on the dashboard.
 
 ```
  AI panel (AG Studio, edit mode)
