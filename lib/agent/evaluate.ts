@@ -173,6 +173,7 @@ export async function decideCase(a: DecideArgs): Promise<Decision> {
     narrative: a.c.narrative,
     photoCount: a.c.photos.length,
     docCount: a.c.docs.length,
+    applicantReplies: a.c.applicantReplies ?? 0,
     prescreen: a.prescreen,
     duplicates: a.dupMatches.map((d) => ({ caseId: d.caseId, by: d.by })),
   });
@@ -251,9 +252,11 @@ export function applyCodeRules(decision: Decision, c: CaseDoc, dupMatches: DupMa
   const lang = normalizeLang(decision.applicantLanguage || c.lang);
   let eligibility = decision.eligibility;
   const followUpQuestions = [...decision.followUpQuestions];
-  if (flags.has("zip_outside_declared_area") && eligibility === "eligible") {
-    eligibility = "needs_info";
-    followUpQuestions.push(MESSAGES[lang].proofOfResidence);
+  // P-2: an address outside the declared area gets the proof-of-residence question once, together with anything
+  // else the applicant is asked. Once they have answered, a volunteer decides (decideStatus) and it is not asked again.
+  if (flags.has("zip_outside_declared_area") && !(c.applicantReplies ?? 0)) {
+    if (eligibility === "eligible") eligibility = "needs_info";
+    if (eligibility === "needs_info" && !followUpQuestions.includes(MESSAGES[lang].proofOfResidence)) followUpQuestions.push(MESSAGES[lang].proofOfResidence);
   }
   if (evidence && evidence.usable < POLICY.autoApproveMinEvidence && eligibility === "eligible") {
     eligibility = "needs_info";

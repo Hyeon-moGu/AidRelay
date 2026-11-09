@@ -226,7 +226,7 @@ export function buildTools(ctx: RunContext): ToolSet {
               amount !== null &&
               wouldBePaid({ id: c.id, tier: decision.tier ?? 0, amountCents: amount, createdAtMs: c.timestamps.created.toMillis() }, queue.candidates, queue.queueBalanceCents);
             const velocity = amount === null ? { ok: true as const } : velocityCheck(await recentAutoPayouts(), amount, Date.now(), ctx.limits.velocity);
-            const decideCtx = { fundsAvailable, usableEvidence, velocityOk: velocity.ok };
+            const decideCtx = { fundsAvailable, usableEvidence, velocityOk: velocity.ok, applicantAnswered: (c.applicantReplies ?? 0) > 0 };
             let next = decideStatus(decision, amount, ctx.limits, decideCtx);
 
             // P-9.9: anything the agent could pay on its own, now (approved) or after a donation (parked).

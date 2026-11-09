@@ -101,6 +101,21 @@ describe("applyCodeRules", () => {
     expect(out.tier).toBe(3);
   });
 
+  it("asks for proof of residence once: after an answer the question is not repeated", () => {
+    const out = applyCodeRules({ ...eligible, tier: 3, applicantLanguage: "es" }, mkCase({ id: "C-008", zip: "27312", lang: "es", applicantReplies: 1 }), []);
+    expect(out.redFlags).toContain("zip_outside_declared_area");
+    expect(out.followUpQuestions).not.toContain(MESSAGES.es.proofOfResidence);
+    expect(out.eligibility).toBe("eligible");
+  });
+
+  it("adds the proof-of-residence question to the model's own questions on the first pass, without repeating it", () => {
+    const asked = { ...eligible, eligibility: "needs_info" as const, followUpQuestions: ["How many people live in the home?"] };
+    const out = applyCodeRules(asked, mkCase({ id: "C-008", zip: "27312" }), []);
+    expect(out.followUpQuestions).toEqual(["How many people live in the home?", MESSAGES.en.proofOfResidence]);
+    const again = applyCodeRules({ ...asked, followUpQuestions: [MESSAGES.en.proofOfResidence] }, mkCase({ id: "C-008", zip: "27312" }), []);
+    expect(again.followUpQuestions).toEqual([MESSAGES.en.proofOfResidence]);
+  });
+
   it("C-009: duplicate matches from the system become red flags", () => {
     const out = applyCodeRules({ ...eligible, tier: 3 }, mkCase({ id: "C-009", householdSize: 4 }), [
       { caseId: "C-003", by: ["photo", "address"], photoDistance: 0 },

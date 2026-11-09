@@ -122,6 +122,8 @@ export interface CaseDoc {
   dupMatches?: DupMatch[];
   /** Follow-up shown on the applicant's status page (policy §6). */
   applicantMessage?: { lang: string; text: string; at: Timestamp };
+  /** How many times the applicant has answered a follow-up question. After an answer, P-2 goes to a volunteer instead of being asked again. */
+  applicantReplies?: number;
   reservedCents?: number;
   payoutBatchId?: string;
   notes?: Array<{ by: AuditActor; text: string; at: Timestamp }>;

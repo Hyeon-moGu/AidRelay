@@ -113,3 +113,20 @@ describe("evaluate_case and the waiting queue (P-8)", () => {
     expect(result.status).toBe("approved");
   });
 });
+
+describe("evaluate_case and an address outside the declared area (P-2)", () => {
+  it("asks for proof of residence once, then hands the case to a volunteer instead of asking again", async () => {
+    stubModel(2);
+    await seedCase("C-NEW", T0, { zip: "27312" });
+    expect(await evaluate("C-NEW")).toMatchObject({ status: "needs_info", clause: "P-2" });
+    expect((await getCase("C-NEW"))?.aiDecision?.followUpQuestions).toHaveLength(1);
+
+    // The applicant answers: submitReply counts the answer and sends the case back for evaluation.
+    await db.collection("cases").doc("C-NEW").update({ status: "new", applicantReplies: 1 });
+    expect(await evaluate("C-NEW")).toMatchObject({ status: "needs_review", clause: "P-2" });
+    const stored = await getCase("C-NEW");
+    expect(stored?.status).toBe("needs_review");
+    expect(stored?.aiDecision?.followUpQuestions).toEqual([]);
+    expect(stored?.redFlags).toContain("zip_outside_declared_area");
+  });
+});

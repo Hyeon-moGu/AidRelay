@@ -198,6 +198,14 @@ describe("decideStatus, the ten seed cases and the hardening rules", () => {
   it("C-008: zip outside the area → needs_info (P-2), not review", () => {
     expect(decideStatus(d({ eligibility: "needs_info", tier: 3, redFlags: ["zip_outside_declared_area"] }), null, limits, ok)).toMatchObject({ status: "needs_info", clause: "P-2" });
   });
+  it("C-008 after the applicant answered: a volunteer checks the proof of residence, and the question is not asked again", () => {
+    const answered = { ...ok, applicantAnswered: true };
+    expect(decideStatus(d({ eligibility: "needs_info", tier: 3, redFlags: ["zip_outside_declared_area"] }), null, limits, answered)).toMatchObject({ status: "needs_review", clause: "P-2" });
+    // Even when everything else looks payable, an address outside the area is never paid without a person.
+    expect(decideStatus(d({ tier: 2, redFlags: ["zip_outside_declared_area"] }), 25_000, limits, answered)).toMatchObject({ status: "needs_review", clause: "P-2" });
+    // An answer changes nothing for a case inside the area: a missing detail is still asked for.
+    expect(decideStatus(d({ eligibility: "needs_info", tier: null }), null, limits, answered)).toMatchObject({ status: "needs_info", clause: "P-5" });
+  });
   it("C-009: duplicate photo + address → needs_review", () => {
     expect(decideStatus(d({ tier: 3, redFlags: ["duplicate_photo_hash", "duplicate_address"] }), 35_000, limits, ok)).toMatchObject({ status: "needs_review", clause: "P-4" });
   });

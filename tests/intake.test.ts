@@ -145,6 +145,8 @@ describe("submitReply", () => {
     expect(stored.narrative).toContain("Here is my lease.");
     expect(stored.photos).toEqual(["cases/C-REPLY/photo-1.jpg", "cases/C-REPLY/photo-2.jpg"]);
     expect(stored.photoHashes).toHaveLength(2);
+    // The answer is counted: an out-of-area case goes to a volunteer after it instead of being asked again (P-2).
+    expect(stored.applicantReplies).toBe(1);
     expect(enqueueAgentRun).toHaveBeenCalledWith({ trigger: "case.created", caseId: before.id });
   });
 

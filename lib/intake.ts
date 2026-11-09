@@ -138,6 +138,7 @@ export async function submitReply(token: string, text: string, photos: UploadedF
       photos: [...c.photos, ...stored.paths],
       docs: [...c.docs, ...storedDocs.paths],
       photoHashes: [...oldHashes.slice(0, c.photos.length), ...stored.hashes, ...oldHashes.slice(c.photos.length), ...storedDocs.hashes],
+      applicantReplies: (c.applicantReplies ?? 0) + 1,
       notes: [...(c.notes ?? []), { by: "system", text: `applicant replied (${photos.length} photo(s), ${docs.length} document(s), ${text.length} chars)`, at: Timestamp.now() }],
     },
     { actor: "system", action: "case.applicant_replied", reason: "applicant answered the follow-up" },

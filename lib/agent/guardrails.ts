@@ -176,7 +176,7 @@ export function assertPayable(input: PayableInput): { path: PayablePath } {
   return { path: "auto" };
 }
 
-/** Flags that always need a human, as opposed to `zip_outside_declared_area`, which P-2 turns into a question. */
+/** Flags that always need a human, as opposed to `zip_outside_declared_area`, which P-2 turns into a question first. */
 export const REVIEW_FLAGS: readonly RedFlag[] = [
   "duplicate_photo_hash",
   "duplicate_address",
@@ -194,6 +194,11 @@ export interface DecideContext {
   usableEvidence?: number;
   /** P-10 result; false sends an otherwise auto-approvable case to a human. */
   velocityOk?: boolean;
+  /**
+   * The applicant has already answered a follow-up. An address outside the declared area is then a volunteer's
+   * call (P-2): the proof-of-residence question has been asked, and asking it again would never end.
+   */
+  applicantAnswered?: boolean;
 }
 
 /**
@@ -209,7 +214,11 @@ export function decideStatus(decision: Decision, amountCents: number | null, lim
   if (reviewFlags.length > 0) {
     return { status: "needs_review", clause: "P-4", reason: `red flags: ${reviewFlags.join(", ")}` };
   }
-  if (decision.eligibility === "needs_info" || decision.redFlags.includes("zip_outside_declared_area")) {
+  const outsideArea = decision.redFlags.includes("zip_outside_declared_area");
+  if (outsideArea && ctx.applicantAnswered) {
+    return { status: "needs_review", clause: "P-2", reason: "address outside the declared area; the applicant has answered, so a volunteer checks the proof of residence" };
+  }
+  if (decision.eligibility === "needs_info" || outsideArea) {
     return { status: "needs_info", clause: decision.redFlags.length ? "P-2" : "P-5", reason: "more information needed" };
   }
   if (decision.eligibility === "ineligible") {
