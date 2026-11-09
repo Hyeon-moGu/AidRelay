@@ -17,18 +17,18 @@ export default async function OpsLoginPage() {
       <Brand />
       <div className="mt-8 rounded-2xl border border-border bg-card p-6">
         <h1 className="text-xl font-semibold tracking-tight">Staff console</h1>
-        <p className="mt-1.5 text-sm leading-relaxed text-muted-foreground">
-          Volunteers supervise the Case Officer here. The password is in the fund’s testing instructions.
-          {openToLook && " You need it to approve, reject, send payouts and ask the ledger."}
-        </p>
+        <div className="mt-2 space-y-1 text-sm leading-relaxed text-muted-foreground">
+          <p>Volunteers supervise the AI case officer here.</p>
+          <p>Sign in to approve, reject, send payouts and ask the ledger.</p>
+          <p>The password is in the Devpost testing instructions.</p>
+        </div>
         <LoginForm />
         {openToLook && (
           <p className="mt-5 border-t border-border pt-4 text-sm text-muted-foreground">
-            Just looking?{" "}
-            <Link href="/ops" className="font-medium text-foreground underline underline-offset-2">
+            Just looking?
+            <Link href="/ops" className="mt-0.5 block font-medium text-foreground underline underline-offset-2">
               Open the console without signing in
             </Link>
-            .
           </p>
         )}
       </div>
