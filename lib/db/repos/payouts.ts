@@ -239,16 +239,16 @@ export async function applyPayoutEvent(info: PayoutEventInfo, source: "webhook" 
 }
 
 /** Polls PayPal for the batch and applies every item. Used by get_payout_status and the sweep backstop. */
-export async function refreshPayoutStatus(caseId: string): Promise<{ payout: PayoutDoc | undefined; applied: Array<{ status: string; outcome: string }> }> {
+export async function refreshPayoutStatus(caseId: string): Promise<{ payout: PayoutDoc | undefined; applied: Array<{ status: string; outcome: string; changed: boolean }> }> {
   const payout = await getPayout(caseId);
   if (!payout?.payoutBatchId) return { payout, applied: [] };
   const batch = await getPayoutBatch(payout.payoutBatchId);
-  const applied: Array<{ status: string; outcome: string }> = [];
+  const applied: Array<{ status: string; outcome: string; changed: boolean }> = [];
   for (const item of batch.items ?? []) {
     const info = infoFromBatchItem(batch, item);
     if ((info.caseId ?? caseId) !== caseId) continue;
     const r = await applyPayoutEvent({ ...info, caseId }, "poll", "poll.item");
-    applied.push({ status: info.status, outcome: r.outcome });
+    applied.push({ status: info.status, outcome: r.outcome, changed: r.changed });
   }
   return { payout: await getPayout(caseId), applied };
 }

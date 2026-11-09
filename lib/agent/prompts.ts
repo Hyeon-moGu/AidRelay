@@ -22,7 +22,7 @@ Procedure for a new case:
   Call evaluate_case once per case. Then stop.
 
 Procedure for an allocation (a donation arrived, or a scheduled sweep):
-  get_fund_balance → plan_allocation → for each case in "pay", in the given order: reserve_funds, then create_payout. plan_allocation has already parked the "park" cases; leave them alone. Then stop.
+  get_fund_balance → plan_allocation → for each case in "pay", in the given order: reserve_funds, then create_payout. plan_allocation has already parked the "park" cases; leave them alone. Cases under "blocked" already have a payout record and wait for an operator; leave them alone too. Then stop.
 
 Finish every run with a 2–3 sentence plain-English summary for the activity feed, naming the case ids, what happened, and the clauses you relied on.`;
 

@@ -4,7 +4,7 @@
 import { FieldValue, Timestamp } from "firebase-admin/firestore";
 import { APICallError, NoObjectGeneratedError, tool, type ToolSet } from "ai";
 import { z } from "zod";
-import { planAllocation } from "@/lib/agent/allocation";
+import { planAllocation, type AllocationCase } from "@/lib/agent/allocation";
 import { applyCodeRules, countUsableEvidence, decideCase, findDuplicates, loadCaseImages, prescreenPhotos } from "@/lib/agent/evaluate";
 import { assertPayable, autoApproveCheck, decideStatus, GuardrailError, velocityCheck, type AutoApproveLimits } from "@/lib/agent/guardrails";
 import type { Usage } from "@/lib/agent/models";
@@ -455,37 +455,68 @@ export function buildTools(ctx: RunContext): ToolSet {
 
     plan_allocation: tool({
       description:
-        "P-8 allocation of the available balance over the cases waiting for money (approved or parked): which to pay now, in order. Approved cases the balance cannot cover are moved to parked here, in code; they are paid on a later donation.",
+        "P-8 allocation of the available balance over the cases waiting for money (approved or parked): which to pay now, in order. Approved cases the balance cannot cover are moved to parked here, in code; they are paid on a later donation. Cases listed under blocked already have a payout record and wait for an operator.",
       inputSchema: z.object({}),
-      execute: async (args) =>
-        logged(ctx, "plan_allocation", args, "P-8", async () => {
-          const [fund, waiting] = await Promise.all([getFund(), listCases(["approved", "parked"])]);
-          const candidates = waiting
-            .map((c) => ({ c, amountCents: amountForCase(c) }))
-            .filter((x): x is { c: CaseDoc; amountCents: number } => x.amountCents !== null)
-            .map((x) => ({ id: x.c.id, tier: x.c.tier ?? x.c.aiDecision?.tier ?? 0, amountCents: x.amountCents, createdAtMs: x.c.timestamps.created.toMillis(), status: x.c.status }));
-          // Already-reserved amounts are available to their own case: count them back into the balance.
-          const reservedByWaiting = waiting.reduce((sum, c) => sum + (c.reservedCents ?? 0), 0);
-          const plan = planAllocation(candidates, fundBalanceCents(fund) + reservedByWaiting);
-          // P-8: a case the money cannot cover waits as `parked`, so the queue and the public ledger show it as
-          // waiting for funds (a human-approved case may be parked; it stays approved by its human).
-          const parkedNow: string[] = [];
-          for (const p of plan.park) {
-            if (p.status !== "approved") continue;
-            try {
-              await setCaseStatus(p.id, "parked", {
-                actor: "agent",
-                action: "case.parked",
-                policyClause: "P-8",
-                reason: `insufficient funds: need ${p.amountCents}, available ${plan.remainingCents}`,
-              });
-              parkedNow.push(p.id);
-            } catch (err) {
-              console.warn(`[tools] could not park ${p.id}:`, err instanceof Error ? err.message : err);
-            }
-          }
-          return { balanceCents: fundBalanceCents(fund), pay: plan.pay, park: plan.park, parkedNow, remainingCents: plan.remainingCents };
-        }),
+      execute: async (args) => logged(ctx, "plan_allocation", args, "P-8", () => planWaitingCases()),
     }),
   };
+}
+
+type PlannedCase = AllocationCase & { status: CaseDoc["status"] };
+
+export interface WaitingPlan {
+  balanceCents: number;
+  /** Payable now, in P-8 order. */
+  pay: PlannedCase[];
+  /** The balance cannot cover these; they wait as `parked`. */
+  park: PlannedCase[];
+  /** Approved cases this call moved to `parked`. */
+  parkedNow: string[];
+  /** A payout record already exists (PayPal did not accept it, or it failed): only an operator can move these. */
+  blocked: Array<{ id: string; payoutStatus: string }>;
+  remainingCents: number;
+}
+
+/**
+ * P-8 over every case waiting for money, in code: what to pay now and in which order, and which approved
+ * cases to park. The plan_allocation tool and the sweep both use it, so the sweep can tell without a model
+ * call whether there is anything to pay.
+ */
+export async function planWaitingCases(): Promise<WaitingPlan> {
+  const [fund, waiting] = await Promise.all([getFund(), listCases(["approved", "parked"])]);
+  const payouts = await Promise.all(waiting.map((c) => getPayout(c.id)));
+  // One payout per case (§1.3): a case that already has a payout record cannot be paid again by the agent,
+  // so it takes no place in the plan. Its reservation, if it has one, stays set aside for it.
+  const blocked: WaitingPlan["blocked"] = [];
+  const open: CaseDoc[] = [];
+  waiting.forEach((c, i) => {
+    const payout = payouts[i];
+    if (payout) blocked.push({ id: c.id, payoutStatus: payout.status });
+    else open.push(c);
+  });
+  const candidates = open
+    .map((c) => ({ c, amountCents: amountForCase(c) }))
+    .filter((x): x is { c: CaseDoc; amountCents: number } => x.amountCents !== null)
+    .map((x) => ({ id: x.c.id, tier: x.c.tier ?? x.c.aiDecision?.tier ?? 0, amountCents: x.amountCents, createdAtMs: x.c.timestamps.created.toMillis(), status: x.c.status }));
+  // Already-reserved amounts are available to their own case: count them back into the balance.
+  const reservedByOpen = open.reduce((sum, c) => sum + (c.reservedCents ?? 0), 0);
+  const plan = planAllocation(candidates, fundBalanceCents(fund) + reservedByOpen);
+  // P-8: a case the money cannot cover waits as `parked`, so the queue and the public ledger show it as
+  // waiting for funds (a human-approved case may be parked; it stays approved by its human).
+  const parkedNow: string[] = [];
+  for (const p of plan.park) {
+    if (p.status !== "approved") continue;
+    try {
+      await setCaseStatus(p.id, "parked", {
+        actor: "agent",
+        action: "case.parked",
+        policyClause: "P-8",
+        reason: `insufficient funds: need ${p.amountCents}, available ${plan.remainingCents}`,
+      });
+      parkedNow.push(p.id);
+    } catch (err) {
+      console.warn(`[tools] could not park ${p.id}:`, err instanceof Error ? err.message : err);
+    }
+  }
+  return { balanceCents: fundBalanceCents(fund), pay: plan.pay, park: plan.park, parkedNow, blocked, remainingCents: plan.remainingCents };
 }
