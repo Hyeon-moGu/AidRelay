@@ -6,7 +6,8 @@ export const NEED_LABEL: Record<number, string> = {
   1: "Minor loss",
   2: "Damaged home",
   3: "Displaced",
-  4: "Displaced, high need",
+  // Short enough to sit under its bar in the report's narrowest chart (the auditor's layout) without colliding.
+  4: "High need",
 };
 
 /**

@@ -187,12 +187,13 @@ export function ledgerReport(): AgReportState {
               style: {
                 // Slices take the report palette in order, so sorting by name, descending, always gives
                 // "Volunteer" the first color (green) and "AI case officer" the second (teal), the same pair
-                // the grid's icons use. (Studio ignores per-widget fills for a donut.) No legend: each slice
-                // is already labelled with its name and count.
-                theme: { common: { legend: { enabled: false } } },
+                // the grid's icons use. (Studio ignores per-widget fills for a donut.) The names go in a legend
+                // below, and only the counts beside the slices: a name beside a slice is dropped when the chart is
+                // narrow (the auditor's layout), and the reader would lose which slice is which.
+                theme: { common: { legend: { enabled: true, position: "bottom" } } },
                 custom: {
-                  // "Volunteer (6)" beside each slice (not color alone), the total in the middle, and a gap between slices.
-                  pieDataLabel: { enabled: true, position: "outside", format: "value", category: true },
+                  // The count beside each slice (not color alone), the total in the middle, and a gap between slices.
+                  pieDataLabel: { enabled: true, position: "outside", format: "value", category: false },
                   totalLabel: { enabled: true, fontSize: 28, fontWeight: "bold" },
                   seriesStroke: { enabled: true, strokeWidth: 2 },
                 },
