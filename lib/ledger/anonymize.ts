@@ -45,58 +45,90 @@ export function scrubPii(text: string): string {
 
 const REDACTED = "[redacted]";
 const STREET_TYPES = "rd|road|st|street|ave|avenue|ln|lane|dr|drive|ct|court|blvd|boulevard|way|pl|place|hwy|highway|cir|circle|ter|terrace|trl|trail";
+const DIRECTIONS = "n|s|e|w|ne|nw|se|sw|north|south|east|west";
 const STREET_TYPE_RE = new RegExp(`^(?:${STREET_TYPES})\\.?$`, "i");
+const DIRECTION_RE = new RegExp(`^(?:${DIRECTIONS})\\.?$`, "i");
+/** "Apt B", "Unit 4", "#12": where the street ends and the unit begins. */
+const UNIT_RE = /^(?:apt|apartment|unit|ste|suite|lot|bldg|building|fl|floor|rm|room|trailer|spc|space)\.?$|^#/i;
+/** What follows a surname when it is used as a name: "Whitfield's", "Whitfield household". */
+const NAME_CONTEXT_RE = /^(?:['’]s(?![\p{L}])|\s+(?:family|household|home|house|residence|couple|children|kids)(?![\p{L}]))/iu;
+/** The text before a word ends a sentence (or there is none): the word is capitalized by position, not as a name. */
+const SENTENCE_START_RE = /(?:^|[.!?;:]\s+|[\n"“(])\s*$/;
 
 const escapeRe = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 /** Whole-word match on letters and digits in any script (\b only knows ASCII). */
 const word = (pattern: string, flags: string) => new RegExp(`(?<![\\p{L}\\d])${pattern}(?![\\p{L}\\d])`, `${flags}u`);
+const phrase = (words: string[]) => words.map(escapeRe).join("\\s+");
 
 /**
  * Removes the applicant's own name and street address from text meant for the public ledger. The model is
  * told not to write them; this is the check in code behind that instruction.
- * - Name: the full name in any case, and each part of it as a name is written ("Dana", "DANA", or the
- *   way the applicant typed it), so an ordinary lower-case word that happens to be a name is left alone.
- * - Address: the address as given, the house number with the street words that follow it, and the
- *   street name with a street type ("Mill Creek Rd", "Mill Creek Road"). The street name alone stays:
- *   "Mill Creek overflowed" is a fact about the flood, not an address.
+ *
+ * Name. The full name goes in any case. A single part goes when it is written as a name: capitalized in
+ * the middle of a sentence, or, at the start of one, the given name, or a surname followed by "'s",
+ * "family", "household" and the like. A surname that only opens a sentence stays, because surnames are
+ * often ordinary words ("Stone foundation cracked", "Flood damage", "Brown water") and blanking the word
+ * would both spoil the line and give the name away.
+ *
+ * Address. The address as given, the house number with the street words after it, and the street name with
+ * a street type in either spelling ("Mill Creek Rd", "Mill Creek Road"), with or without a direction ("N
+ * Main St"). The unit is not part of the street, and the street name alone stays: "Mill Creek overflowed"
+ * is a fact about the flood, not an address.
  */
 export function scrubIdentity(text: string, contact: { name?: string | null; address?: string | null }): string {
-  let out = text;
+  return scrubAddress(scrubName(text, contact.name?.trim() ?? ""), contact.address?.trim() ?? "");
+}
 
-  const name = contact.name?.trim() ?? "";
-  if (name) {
-    out = out.replace(word(name.split(/\s+/).map(escapeRe).join("\\s+"), "gi"), REDACTED);
-    for (const part of name.split(/\s+/)) {
-      const letters = part.replace(/[^\p{L}'-]/gu, "");
-      if (letters.length < 3) continue;
-      const variants = new Set([letters, letters[0].toUpperCase() + letters.slice(1).toLowerCase(), letters.toUpperCase()]);
-      for (const v of variants) out = out.replace(word(escapeRe(v), "g"), REDACTED);
+function scrubName(text: string, name: string): string {
+  if (!name) return text;
+  const parts = name.split(/\s+/).filter(Boolean);
+  let out = text.replace(word(phrase(parts), "gi"), REDACTED);
+  parts.forEach((part, index) => {
+    const letters = part.replace(/[^\p{L}'-]/gu, "");
+    if (letters.length < 2) return; // an initial
+    const capitalized = letters[0].toUpperCase() + letters.slice(1).toLowerCase();
+    // Two-letter parts ("Li", "Ng") take the careful rule and no all-caps form: "An", "So" and "NC" are words too.
+    const short = letters.length < 3;
+    const givenName = index === 0 && parts.length > 1 && !short;
+    for (const variant of short ? [capitalized] : [capitalized, letters.toUpperCase()]) {
+      out = out.replace(word(escapeRe(variant), "g"), (match: string, offset: number, whole: string) => {
+        if (givenName || !SENTENCE_START_RE.test(whole.slice(0, offset))) return REDACTED;
+        return NAME_CONTEXT_RE.test(whole.slice(offset + match.length)) ? REDACTED : match;
+      });
     }
-  }
-
-  const address = contact.address?.trim() ?? "";
-  if (address) {
-    const street = address.split(",")[0].trim();
-    for (const literal of new Set([address, street])) {
-      if (literal) out = out.replace(word(literal.split(/\s+/).map(escapeRe).join("\\s+"), "gi"), REDACTED);
-    }
-    const numbered = /^(\d+[A-Za-z]?)\s+(.+)$/.exec(street);
-    if (numbered) {
-      const [, houseNumber, rest] = numbered;
-      const words = rest.split(/\s+/).filter(Boolean);
-      const streetType = `(?:${STREET_TYPES})\\.?`;
-      // "412 Mill", "412 Mill Creek", "412 Mill Creek Road": the number, the first street word, then as many
-      // of the address's own words as follow, with either spelling of the street type.
-      const tail = words
-        .slice(1)
-        .map((w) => `(?:\\s+${STREET_TYPE_RE.test(w) ? streetType : escapeRe(w)})?`)
-        .join("");
-      out = out.replace(word(`${escapeRe(houseNumber)}\\s+${escapeRe(words[0])}${tail}`, "gi"), REDACTED);
-      const streetName = words.filter((w) => !STREET_TYPE_RE.test(w));
-      if (streetName.length > 0) out = out.replace(word(`${streetName.map(escapeRe).join("\\s+")}\\s+${streetType}`, "gi"), REDACTED);
-    }
-  }
+  });
   return out;
+}
+
+function scrubAddress(text: string, address: string): string {
+  if (!address) return text;
+  const segments = address.split(",").map((seg) => seg.trim()).filter(Boolean);
+  // The part with the house number: "Apt 4B, 22 Elm Street, Cedar Falls" -> "22 Elm Street".
+  const numbered = segments.find((seg) => /^\d+[A-Za-z]?\s+\S/.test(seg));
+  let out = text;
+  for (const literal of new Set([address, segments[0], numbered].filter((x): x is string => !!x))) {
+    out = out.replace(word(phrase(literal.split(/\s+/)), "gi"), REDACTED);
+  }
+
+  const line = numbered ?? segments[0] ?? "";
+  const houseNumber = /^(\d+[A-Za-z]?)\s+/.exec(line)?.[1];
+  let words = line.slice(houseNumber ? houseNumber.length : 0).split(/\s+/).filter(Boolean);
+  const unitAt = words.findIndex((w) => UNIT_RE.test(w));
+  if (unitAt >= 0) words = words.slice(0, unitAt);
+  if (words.length > 1 && DIRECTION_RE.test(words[0])) words = words.slice(1);
+  if (words.length > 1 && DIRECTION_RE.test(words[words.length - 1])) words = words.slice(0, -1);
+  const streetName = words.filter((w) => !STREET_TYPE_RE.test(w));
+  if (streetName.length === 0) return out;
+
+  const direction = `(?:(?:${DIRECTIONS})\\.?\\s+)?`;
+  const streetType = `(?:${STREET_TYPES})\\.?`;
+  if (houseNumber) {
+    // "412 Mill", "412 Mill Creek", "412 N Mill Creek Road": the number, the first street word, then as many of
+    // the street's own words as follow, and a street type in either spelling.
+    const rest = streetName.slice(1).map((w) => `(?:\\s+${escapeRe(w)})?`).join("");
+    out = out.replace(word(`${escapeRe(houseNumber)}\\s+${direction}${escapeRe(streetName[0])}${rest}(?:\\s+${streetType})?`, "gi"), REDACTED);
+  }
+  return out.replace(word(`${direction}${phrase(streetName)}\\s+${streetType}`, "gi"), REDACTED);
 }
 
 /** Public ledger rows show only the first three digits of a zip code. */

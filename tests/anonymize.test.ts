@@ -63,6 +63,23 @@ describe("scrubIdentity (the applicant's own name and address never reach the pu
     expect(scrubIdentity("About 412 sq ft of flooring lost", dana)).toBe("About 412 sq ft of flooring lost");
   });
 
+  it("tells a surname used as a name from the same word opening a sentence", () => {
+    const stone = { name: "Mara Stone", address: null };
+    expect(scrubIdentity("Stone foundation cracked; household of 1", stone)).toBe("Stone foundation cracked; household of 1");
+    expect(scrubIdentity("Stone household of 1; foundation cracked", stone)).toBe("[redacted] household of 1; foundation cracked");
+    expect(scrubIdentity("Stone's basement flooded", stone)).toBe("[redacted]'s basement flooded");
+    expect(scrubIdentity("Basement of the Stone family flooded", stone)).toBe("Basement of the [redacted] family flooded");
+    // The given name is rarely an ordinary word, so it goes wherever it stands.
+    expect(scrubIdentity("Mara lost a washer. Mara is staying with family", stone)).toBe("[redacted] lost a washer. [redacted] is staying with family");
+  });
+
+  it("handles two-letter surnames without blanking short words", () => {
+    const li = { name: "An Li", address: null };
+    expect(scrubIdentity("An elderly couple lost the furnace", li)).toBe("An elderly couple lost the furnace");
+    expect(scrubIdentity("Furnace lost at the Li home; so far no heat", li)).toBe("Furnace lost at the [redacted] home; so far no heat");
+    expect(scrubIdentity("An Li lost the furnace", li)).toBe("[redacted] lost the furnace");
+  });
+
   it("handles names outside ASCII and a contact with nothing to remove", () => {
     expect(scrubIdentity("José Núñez perdió la cocina", { name: "José Núñez", address: "" })).toBe("[redacted] perdió la cocina");
     expect(scrubIdentity("Flooded kitchen, family of 3", { name: "", address: null })).toBe("Flooded kitchen, family of 3");
