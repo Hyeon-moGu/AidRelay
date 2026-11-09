@@ -4,7 +4,7 @@ import { BrandMark } from "./brand";
 const LINKS = [
   { href: "/policy", label: "How it decides" },
   { href: "/api/ledger", label: "Ledger data" },
-  { href: "/ops", label: "For volunteers" },
+  { href: "/ops", label: "Staff console" },
   { href: "https://github.com/Hyeon-moGu/AidRelay", label: "Source code (MIT)", external: true },
 ];
 

@@ -5,11 +5,13 @@ import { usePathname } from "next/navigation";
 import { cn } from "cn";
 import { Brand } from "./brand";
 
-const NAV = [
+// `from` hides a link below that width: on phones the header has room for two links and the Donate button only.
+const NAV: Array<{ href: string; label: string; from?: "sm" | "md" }> = [
   { href: "/ledger", label: "Ledger" },
-  // Hidden on phones, where the header has room for two links and the Donate button only.
-  { href: "/policy", label: "How it decides", wide: true },
+  { href: "/policy", label: "How it decides", from: "sm" },
   { href: "/apply", label: "Get help" },
+  // Where volunteers supervise the agent. Open to look at in the demo; on phones the landing page and the footer link to it.
+  { href: "/ops", label: "Staff console", from: "md" },
 ];
 
 // The links stay compact but their tap area reaches 44px tall.
@@ -33,7 +35,8 @@ export function SiteHeader() {
                   tapArea,
                   "rounded-md px-2 py-1.5 font-medium text-muted-foreground transition-colors hover:text-foreground sm:px-2.5",
                   active && "text-foreground",
-                  n.wide && "hidden sm:inline-flex",
+                  n.from === "sm" && "hidden sm:inline-flex",
+                  n.from === "md" && "hidden md:inline-flex",
                 )}
               >
                 {n.label}

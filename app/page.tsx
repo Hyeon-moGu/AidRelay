@@ -97,6 +97,14 @@ export default async function Home() {
                   Apply for help in about five minutes
                 </Link>
               </p>
+              {getEnv().OPS_PUBLIC_VIEW && (
+                <p className="text-sm text-muted-foreground">
+                  Want to see how volunteers keep watch over the AI?{" "}
+                  <Link href="/ops" className="font-medium text-primary hover:underline">
+                    Look inside the staff console
+                  </Link>
+                </p>
+              )}
             </div>
 
             <LiveFund ledger={ledger} />
