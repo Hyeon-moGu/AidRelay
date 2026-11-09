@@ -1,4 +1,5 @@
 // Shapes the operator console works with. `toRow` runs on the server; the client imports the types only.
+import type { Decision } from "@/lib/agent/schema";
 import { amountForCase } from "@/lib/agent/tools";
 import type { CaseDoc } from "@/lib/db/types";
 
@@ -53,6 +54,54 @@ export interface OpsRun {
   ts: string;
   finishedAt: string | null;
   toolCalls: Array<{ name: string; args: unknown; policyClause: string | null; ms: number; at: string; error: string | null; result: unknown }>;
+}
+
+/** What the case side panel shows: the answer of /api/ops/cases/[id]. */
+export interface CaseDetail {
+  case: {
+    id: string;
+    status: string;
+    lang: string;
+    zip: string;
+    householdSize: number | null;
+    requestedAmountCents: number | null;
+    narrative: string;
+    /** Null for a visitor of the open demo console: contact details go to signed-in operators only. */
+    contact: { name: string; email: string; phone?: string | null; address?: string | null } | null;
+    tier?: number | null;
+    aiDecision?: Decision;
+    aiDecisionSecond?: Decision;
+    secondEvaluationAgrees?: boolean;
+    usableEvidenceCount?: number;
+    approvedAmountCents?: number;
+    humanDecision: { approved: boolean; by: string; amountCents?: number; note?: string; at: string } | null;
+    redFlags?: string[];
+    dupMatches?: Array<{ caseId: string; by: string[] }>;
+    applicantMessage: { lang: string; text: string; at: string } | null;
+    reservedCents?: number;
+    payoutBatchId?: string;
+    notes: Array<{ by: string; text: string; at: string }>;
+    timestamps: Record<string, string | null>;
+    evaluatingSince?: string | null;
+    photoUrls: string[];
+    docUrls: string[];
+  };
+  /** P-4 photo matches: the file in this case and the same photo in the earlier case. */
+  dupPhotos?: Array<{ caseId: string; thisUrl: string; otherUrl: string }>;
+  payout: {
+    status: string;
+    outcome: string;
+    batchStatus?: string;
+    payoutBatchId?: string;
+    amountCents: number;
+    error?: string;
+    /** PayPal did not accept the payout, or never answered: an operator may send it again. */
+    retryable?: boolean;
+    events: Array<{ type: string; status?: string; source: string; at: string }>;
+    createdAt?: string;
+    updatedAt?: string;
+  } | null;
+  audit: Array<{ actor: string; action: string; policyClause?: string; reason: string; ts: string }>;
 }
 
 /** Statuses an operator may act on from the grid. */

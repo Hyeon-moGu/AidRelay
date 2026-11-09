@@ -34,6 +34,15 @@ const EnvSchema = z.object({
     .transform((v) => v === "true"),
   FUND_ID: z.string().min(1).default("default"),
 
+  /**
+   * Demo setting. "true": anyone may look at /ops (queue, case panel, activity feed) with contact details hidden;
+   * every action still needs the operator login. "false": the whole console sits behind the login, as a real fund runs it.
+   */
+  OPS_PUBLIC_VIEW: z
+    .enum(["true", "false"])
+    .default("true")
+    .transform((v) => v === "true"),
+
   AG_GRID_LICENSE_KEY: z.string().optional(),
   AG_STUDIO_LICENSE_KEY: z.string().optional(),
 });

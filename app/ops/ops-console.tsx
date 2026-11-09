@@ -2,7 +2,9 @@
 
 // Operator console: the queue (AG Grid), bulk actions, the case side panel and the live activity feed.
 // Humans approve, reject and ask; the agent pays. Every action here lands in audit_log as human:ops.
-import { LogOut, RefreshCw, Sparkles } from "lucide-react";
+// In the open demo a visitor sees the same screen without signing in (`canAct` false): the buttons ask them to
+// sign in, and the server refuses the action anyway.
+import { Eye, LogIn, LogOut, RefreshCw, Sparkles } from "lucide-react";
 import dynamic from "next/dynamic";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
@@ -27,9 +29,13 @@ type ApiResult<T> = { ok: true; data: T } | { ok: false; error: string };
 
 const STATUS_FILTERS = ["all", "needs_review", "needs_info", "parked", "approved", "paying", "paid", "rejected"] as const;
 
-type Notice = { tone: "ok" | "error"; text: string } | null;
+type Notice = { tone: "ok" | "error" | "signin"; text: string } | null;
 
-export function OpsConsole({ licenseKey }: { licenseKey: string }) {
+const NOTICE_CLASS = { ok: "bg-success-soft text-success", error: "bg-danger-soft text-danger", signin: "bg-warning-soft text-warning" } as const;
+
+const SIGN_IN_TO_ACT = "Looking around is open to everyone. Approving, rejecting, asking and sending payouts need the staff sign-in.";
+
+export function OpsConsole({ licenseKey, canAct }: { licenseKey: string; canAct: boolean }) {
   const router = useRouter();
   const [rows, setRows] = useState<OpsRow[]>([]);
   const [fund, setFund] = useState<OpsFund | null>(null);
@@ -110,7 +116,18 @@ export function OpsConsole({ licenseKey }: { licenseKey: string }) {
     [get],
   );
 
+  /** True when the answer says there is no operator session (a visitor, or a session that ran out): asks them to sign in. */
+  function refusedForSignIn(res: Response): boolean {
+    if (res.status !== 401) return false;
+    setNotice({ tone: "signin", text: SIGN_IN_TO_ACT });
+    return true;
+  }
+
   async function decide(action: "approve" | "reject" | "request_info" | "reopen") {
+    if (!canAct) {
+      setNotice({ tone: "signin", text: SIGN_IN_TO_ACT });
+      return;
+    }
     if (selected.length === 0) {
       setNotice({ tone: "error", text: "Select one or more cases in the queue first." });
       return;
@@ -129,6 +146,7 @@ export function OpsConsole({ licenseKey }: { licenseKey: string }) {
       if (action === "reject" || action === "reopen") body.note = note || undefined;
       if (action === "request_info") body.questions = note ? [note] : [];
       const res = await fetch("/api/ops/decide", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
+      if (refusedForSignIn(res)) return;
       const json = (await res.json()) as ApiResult<{ results: Array<{ caseId: string; ok: boolean; error?: string }>; agentTriggered: boolean }>;
       if (!json.ok) throw new Error(json.error);
       const failed = json.data.results.filter((r) => !r.ok);
@@ -153,10 +171,15 @@ export function OpsConsole({ licenseKey }: { licenseKey: string }) {
 
   /** Sends again a payout PayPal did not accept (same request, same batch id; see /api/ops/payout-retry). */
   async function retryPayout(caseId: string) {
+    if (!canAct) {
+      setNotice({ tone: "signin", text: SIGN_IN_TO_ACT });
+      return;
+    }
     setBusy("retry");
     setNotice(null);
     try {
       const res = await fetch("/api/ops/payout-retry", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ caseId }) });
+      if (refusedForSignIn(res)) return;
       const json = (await res.json()) as ApiResult<{ status: string; payoutBatchId: string | null }>;
       if (!json.ok) throw new Error(json.error);
       setNotice({ tone: "ok", text: `${caseId}: PayPal accepted the payout${json.data.payoutBatchId ? ` (batch ${json.data.payoutBatchId})` : ""}.` });
@@ -184,27 +207,52 @@ export function OpsConsole({ licenseKey }: { licenseKey: string }) {
     <div className="flex min-h-dvh flex-col">
       <header className="sticky top-0 z-40 border-b border-border/70 bg-background/90 backdrop-blur-sm">
         <div className="mx-auto flex h-14 max-w-[1600px] items-center gap-3 px-4">
-          <Brand href="/ops" suffix="Operator console" />
+          <Brand href="/ops" suffix="Staff console" />
           <nav className="ml-auto flex items-center gap-1">
             <Link
               href="/ops/audit"
-              className="inline-flex items-center gap-1.5 rounded-md bg-accent px-2.5 py-1.5 text-sm font-medium text-accent-foreground hover:bg-accent/80"
+              title={canAct ? undefined : "Ask the ledger needs the staff sign-in"}
+              className="inline-flex items-center gap-1.5 rounded-md bg-accent px-2.5 py-1.5 text-sm font-medium whitespace-nowrap text-accent-foreground hover:bg-accent/80"
             >
               <Sparkles aria-hidden="true" className="size-4" />
               Ask the ledger
             </Link>
-            <Link href="/ledger" className="rounded-md px-2.5 py-1.5 text-sm font-medium text-muted-foreground hover:text-foreground">
+            <Link href="/ledger" className="hidden rounded-md px-2.5 py-1.5 text-sm font-medium whitespace-nowrap text-muted-foreground hover:text-foreground sm:block">
               Public ledger
             </Link>
-            <Button variant="ghost" size="sm" onClick={signOut}>
-              <LogOut aria-hidden="true" />
-              Sign out
-            </Button>
+            {canAct ? (
+              <Button variant="ghost" size="sm" onClick={signOut}>
+                <LogOut aria-hidden="true" />
+                Sign out
+              </Button>
+            ) : (
+              <Link href="/ops/login" className="inline-flex items-center gap-1.5 rounded-md px-2.5 py-1.5 text-sm font-medium whitespace-nowrap text-muted-foreground hover:text-foreground">
+                <LogIn aria-hidden="true" className="size-4" />
+                Sign in
+              </Link>
+            )}
           </nav>
         </div>
       </header>
 
       <main id="main" className="mx-auto w-full max-w-[1600px] flex-1 space-y-4 px-4 py-5">
+        {!canAct && (
+          <aside aria-label="About this demo" className="flex flex-wrap items-start gap-x-4 gap-y-3 rounded-xl border border-border bg-accent/60 p-4 text-sm">
+            <Eye aria-hidden="true" className="mt-0.5 size-5 shrink-0 text-accent-foreground" />
+            <p className="min-w-0 flex-1 basis-80 leading-relaxed">
+              <span className="font-semibold">Open demo, view only.</span> This is the console the fund’s volunteers use to supervise the AI case officer. Anyone can
+              look around: applicants’ contact details are hidden and nothing can be changed. Approving, rejecting, asking and sending payouts need the staff
+              password from the testing instructions. A real fund keeps this whole page behind the sign-in.
+            </p>
+            <Link
+              href="/ops/login"
+              className="inline-flex h-9 shrink-0 items-center gap-1.5 rounded-md bg-primary px-3.5 text-sm font-medium text-primary-foreground hover:bg-primary/90"
+            >
+              <LogIn aria-hidden="true" className="size-4" />
+              Sign in to act
+            </Link>
+          </aside>
+        )}
         <div className="flex flex-wrap items-end justify-between gap-4">
           <div>
             <h1 className="text-xl font-semibold tracking-tight">Case queue</h1>
@@ -282,7 +330,17 @@ export function OpsConsole({ licenseKey }: { licenseKey: string }) {
 
         <div aria-live="polite">
           {notice && (
-            <p className={`animate-relay-in rounded-lg px-3 py-2 text-sm ${notice.tone === "ok" ? "bg-success-soft text-success" : "bg-danger-soft text-danger"}`}>{notice.text}</p>
+            <p className={`animate-relay-in rounded-lg px-3 py-2 text-sm ${NOTICE_CLASS[notice.tone]}`}>
+              {notice.text}
+              {notice.tone === "signin" && (
+                <>
+                  {" "}
+                  <Link href="/ops/login" className="font-semibold underline underline-offset-2">
+                    Sign in
+                  </Link>
+                </>
+              )}
+            </p>
           )}
         </div>
 

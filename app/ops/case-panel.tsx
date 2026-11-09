@@ -6,49 +6,9 @@ import { Chip, StatusBadge } from "@/components/status-badge";
 import { Button } from "@/components/ui/button";
 import { clock, money } from "@/lib/format";
 import type { Decision } from "@/lib/agent/schema";
+import type { CaseDetail } from "@/lib/ops/rows";
 
-export interface CaseDetail {
-  case: {
-    id: string;
-    status: string;
-    lang: string;
-    zip: string;
-    householdSize: number | null;
-    requestedAmountCents: number | null;
-    narrative: string;
-    contact: { name: string; email: string; phone?: string | null; address?: string | null };
-    tier?: number | null;
-    aiDecision?: Decision;
-    aiDecisionSecond?: Decision;
-    secondEvaluationAgrees?: boolean;
-    usableEvidenceCount?: number;
-    approvedAmountCents?: number;
-    humanDecision: { approved: boolean; by: string; amountCents?: number; note?: string; at: string } | null;
-    redFlags?: string[];
-    dupMatches?: Array<{ caseId: string; by: string[] }>;
-    applicantMessage: { lang: string; text: string; at: string } | null;
-    reservedCents?: number;
-    payoutBatchId?: string;
-    notes: Array<{ by: string; text: string; at: string }>;
-    timestamps: Record<string, string | null>;
-    photoUrls: string[];
-    docUrls: string[];
-  };
-  /** P-4 photo matches: the file in this case and the same photo in the earlier case. */
-  dupPhotos?: Array<{ caseId: string; thisUrl: string; otherUrl: string }>;
-  payout: {
-    status: string;
-    outcome: string;
-    batchStatus?: string;
-    payoutBatchId?: string;
-    amountCents: number;
-    error?: string;
-    /** PayPal did not accept the payout, or never answered: an operator may send it again. */
-    retryable?: boolean;
-    events: Array<{ type: string; status?: string; source: string; at: string }>;
-  } | null;
-  audit: Array<{ actor: string; action: string; policyClause?: string; reason: string; ts: string }>;
-}
+export type { CaseDetail };
 
 const orDash = (s: string) => s || "–";
 
@@ -132,12 +92,20 @@ export function CasePanel({
           <Lock aria-hidden="true" className="size-3.5" />
           Private. Never sent to the model or the ledger.
         </p>
-        <p className="mt-1.5 font-medium">{c.contact.name}</p>
-        <p className="truncate text-muted-foreground" translate="no">
-          {c.contact.email}
-          {c.contact.phone ? ` · ${c.contact.phone}` : ""}
-        </p>
-        <p className="text-muted-foreground">{c.contact.address ?? "No address given"}</p>
+        {c.contact ? (
+          <>
+            <p className="mt-1.5 font-medium">{c.contact.name}</p>
+            <p className="truncate text-muted-foreground" translate="no">
+              {c.contact.email}
+              {c.contact.phone ? ` · ${c.contact.phone}` : ""}
+            </p>
+            <p className="text-muted-foreground">{c.contact.address ?? "No address given"}</p>
+          </>
+        ) : (
+          <p className="mt-1.5 leading-relaxed text-muted-foreground">
+            The applicant’s name, email, phone and address are hidden in the open demo. Volunteers see them here after signing in.
+          </p>
+        )}
       </div>
 
       {media.length > 0 && (

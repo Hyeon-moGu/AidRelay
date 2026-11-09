@@ -17,7 +17,7 @@ export function Brand({ href = "/", suffix }: { href?: string; suffix?: string }
     <Link href={href} className="inline-flex items-center gap-2 rounded-md text-[15px] font-semibold tracking-tight" translate="no">
       <BrandMark />
       <span>AidRelay</span>
-      {suffix && <span className="font-normal text-muted-foreground">{suffix}</span>}
+      {suffix && <span className="hidden font-normal text-muted-foreground sm:inline">{suffix}</span>}
     </Link>
   );
 }

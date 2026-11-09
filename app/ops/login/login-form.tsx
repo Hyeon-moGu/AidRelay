@@ -16,7 +16,7 @@ export function LoginForm() {
     e.preventDefault();
     if (busy) return;
     if (!password) {
-      setError("Enter the operator password.");
+      setError("Enter the staff password.");
       return;
     }
     setBusy(true);

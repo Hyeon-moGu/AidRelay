@@ -1,5 +1,6 @@
 // Operator console authentication: one shared password (ADMIN_PASSWORD), a signed cookie, no accounts.
 // Multi-user auth is out of scope for the demo; every human action is still audited as `human:ops`.
+// In the demo the console may also be open to look at (OPS_PUBLIC_VIEW); acting always needs the session.
 import { createHmac, timingSafeEqual } from "node:crypto";
 import { cookies } from "next/headers";
 import { getEnv } from "@/lib/env";
@@ -38,6 +39,17 @@ export function passwordMatches(given: string): boolean {
 export async function isOperator(): Promise<boolean> {
   const jar = await cookies();
   return verifySessionValue(jar.get(OPS_COOKIE)?.value);
+}
+
+/**
+ * Who is asking. An `operator` is signed in and may act. A `viewer` is a visitor of the open demo console
+ * (OPS_PUBLIC_VIEW): they may look, with contact details hidden, and change nothing. `none` must sign in first.
+ */
+export type OpsAccess = "operator" | "viewer" | "none";
+
+export async function opsAccess(): Promise<OpsAccess> {
+  if (await isOperator()) return "operator";
+  return getEnv().OPS_PUBLIC_VIEW ? "viewer" : "none";
 }
 
 export function sessionCookieOptions(secure: boolean) {
