@@ -21,6 +21,13 @@ export class PayPalError extends Error {
   }
 }
 
+/**
+ * Every PayPal call gives up after this long. Node's fetch has no timeout of its own (it waits minutes for
+ * response headers), and a payout attempt must be over well before an operator may send it again
+ * (STALE_CREATING_MS in lib/db/repos/payouts.ts).
+ */
+export const PAYPAL_TIMEOUT_MS = 30_000;
+
 let tokenCache: { token: string; expiresAt: number } | undefined;
 
 /** Client-credentials access token, cached until a minute before expiry. */
@@ -36,6 +43,7 @@ export async function getAccessToken(force = false): Promise<string> {
     },
     body: "grant_type=client_credentials",
     cache: "no-store",
+    signal: AbortSignal.timeout(PAYPAL_TIMEOUT_MS),
   });
   const body = await readBody(res);
   if (!res.ok) {
@@ -68,6 +76,7 @@ export async function paypalFetch<T>(path: string, init: PayPalRequest = {}, att
     },
     body: init.body === undefined ? undefined : JSON.stringify(init.body),
     cache: "no-store",
+    signal: AbortSignal.timeout(PAYPAL_TIMEOUT_MS),
   });
   if (res.status === 401 && attempt === 0) return paypalFetch<T>(path, init, 1);
   const body = await readBody(res);

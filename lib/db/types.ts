@@ -171,6 +171,12 @@ export interface PayoutDoc {
   status: PayoutStatus;
   /** Batch-level status from PAYOUTSBATCH events / the create response (PENDING, PROCESSING, SUCCESS, DENIED). */
   batchStatus?: string;
+  /**
+   * Changes with every attempt to send the request (the first, then each operator retry). Only the attempt
+   * that still owns the record may mark it failed: an answer that arrives late from an earlier attempt, or
+   * after a webhook settled the payout, is noted and changes nothing.
+   */
+  attemptId?: string;
   /** Whether this payout was made without a human (P-10 bookkeeping lives in auto_approvals). */
   autoApproved?: boolean;
   outcome: "pending" | "paid" | "failed" | "create_failed" | "reversed";

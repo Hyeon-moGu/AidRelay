@@ -8,7 +8,7 @@ import type { WebhookEvent } from "@/lib/paypal/events";
 
 export interface PayoutRequestInput {
   caseId: string;
-  /** Unique per case instance; also used as the PayPal-Request-Id. */
+  /** Unique per case instance. PayPal refuses a second batch with a sender_batch_id it saw in the last 30 days. */
   senderBatchId: string;
   recipientEmail: string;
   amountCents: number;
@@ -65,10 +65,15 @@ export interface PayoutBatch {
   items?: PayoutItemDetail[];
 }
 
-export async function createPayout(input: PayoutRequestInput): Promise<PayoutBatch> {
+/**
+ * `attemptId` makes the PayPal-Request-Id: the same for the automatic re-send inside one attempt (a 401 with
+ * a stale token), new for each attempt an operator starts, so PayPal never answers a retry with the stored
+ * response of the attempt that failed. A second batch is still impossible: that is what sender_batch_id is for.
+ */
+export async function createPayout(input: PayoutRequestInput, attemptId: string): Promise<PayoutBatch> {
   return paypalFetch<PayoutBatch>("/v1/payments/payouts", {
     method: "POST",
-    requestId: `payout-${input.senderBatchId}`,
+    requestId: `payout-${input.senderBatchId}-${attemptId}`,
     body: buildPayoutRequest(input),
   });
 }
@@ -83,14 +88,18 @@ export function payoutNote(fundName: string, caseId: string): string {
 }
 
 /**
- * PayPal refuses a second batch with a sender_batch_id it has already seen and points at the first one
- * ("Batch with given sender_batch_id already exists", with a link to it). Returns that batch's id when an
- * error body is such a refusal, so a retry can adopt the batch the first attempt created after all.
+ * PayPal refuses a second batch with a sender_batch_id it has already seen ("Batch with given
+ * sender_batch_id already exists"): the first attempt created the batch after all.
  */
-export function existingBatchIdFromError(body: unknown): string | undefined {
+export function isDuplicateBatchError(body: unknown): boolean {
   const text = JSON.stringify(body ?? "");
-  if (!/already exists/i.test(text) || !/sender_batch_id/i.test(text)) return undefined;
-  return /\/v1\/payments\/payouts\/([A-Z0-9]{6,})/.exec(text)?.[1];
+  return /already exists/i.test(text) && /sender_batch_id/i.test(text);
+}
+
+/** The existing batch's id, when that refusal links to it; a retry then adopts the batch. */
+export function existingBatchIdFromError(body: unknown): string | undefined {
+  if (!isDuplicateBatchError(body)) return undefined;
+  return /\/v1\/payments\/payouts\/([A-Z0-9]{6,})/.exec(JSON.stringify(body))?.[1];
 }
 
 export type PayoutOutcome = "paid" | "failed" | "pending";

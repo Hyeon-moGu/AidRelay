@@ -76,6 +76,10 @@ describe("retryFailedPayout", () => {
     expect(payout).not.toHaveProperty("error");
     const [first, second] = vi.mocked(createPayout).mock.calls.map((call) => call[0]);
     expect(second).toEqual(first);
+    // Same payout, but a new PayPal-Request-Id: PayPal must not answer with the stored reply of the failed attempt.
+    const [firstAttemptId, secondAttemptId] = vi.mocked(createPayout).mock.calls.map((call) => call[1]);
+    expect(firstAttemptId).toBeTruthy();
+    expect(secondAttemptId).not.toBe(firstAttemptId);
     expect(second.senderBatchId).toBe(`C-1-${c.token.slice(0, 8)}`);
     expect((await getCase("C-1"))?.status).toBe("paying");
     expect((await getCase("C-1"))?.payoutBatchId).toBe("B-9");
@@ -184,6 +188,26 @@ describe("payoutIsRetryable", () => {
     expect(payoutIsRetryable({ status: "PENDING", outcome: "pending", updatedAt: at(600_000) })).toBe(false);
     expect(payoutIsRetryable({ status: "FAILED", outcome: "failed", updatedAt: at(600_000) })).toBe(false);
     expect(payoutIsRetryable({ status: "SUCCESS", outcome: "paid", updatedAt: at(600_000) })).toBe(false);
+  });
+});
+
+describe("a duplicate-batch refusal that does not name the batch", () => {
+  it("still counts as accepted: the case stays paying and the webhooks bring the id and the payment", async () => {
+    await failedPayout();
+    vi.mocked(createPayout).mockRejectedValueOnce(
+      new PayPalError("PayPal POST /v1/payments/payouts failed (400)", 400, { name: "USER_BUSINESS_ERROR", details: [{ field: "SENDER_BATCH_ID", issue: "Batch with given sender_batch_id already exists" }] }),
+    );
+    const payout = await retryFailedPayout("C-1", OPS);
+    expect(payout).toMatchObject({ status: "PENDING", outcome: "pending" });
+    expect(payout.payoutBatchId).toBeUndefined();
+    expect(payoutIsRetryable(payout)).toBe(false);
+    expect((await getCase("C-1"))?.status).toBe("paying");
+    expect(vi.mocked(getPayoutBatch)).not.toHaveBeenCalled();
+
+    await applyPayoutEvent({ kind: "item", caseId: "C-1", payoutBatchId: "B-EXISTING", status: "SUCCESS", outcome: "paid" }, "webhook", "PAYMENT.PAYOUTS-ITEM.SUCCEEDED");
+    expect(await getPayout("C-1")).toMatchObject({ payoutBatchId: "B-EXISTING", outcome: "paid" });
+    expect((await getCase("C-1"))?.status).toBe("paid");
+    expect((await getFund()).paidCents).toBe(35_000);
   });
 });
 
