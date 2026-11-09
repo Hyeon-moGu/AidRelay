@@ -264,6 +264,13 @@ describe("viewerRow and viewerRun", () => {
     expect(viewerRow(row)).toMatchObject({ id: "C-1", status: "paid", name: "", email: "", zip: "28501", ledgerSummary: "Flooded kitchen, household of 3." });
   });
 
+  it("scrubs the applicant's name and contact details out of a summary stored before the evaluation did", () => {
+    const row = { id: "C-1", status: "paid", name: NAME, email: EMAIL, ledgerSummary: `${NAME}'s kitchen flooded; call ${EMAIL}.` } as OpsRow;
+    const summary = viewerRow(row).ledgerSummary;
+    for (const part of [...NAME.split(" "), EMAIL]) expect(summary, part).not.toContain(part);
+    expect(summary).toContain("kitchen flooded");
+  });
+
   it("keeps which tool ran on which case and under which clause, and drops what it was given and what it returned", () => {
     const run: OpsRun = {
       id: "r1",

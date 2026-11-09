@@ -38,9 +38,41 @@ function walk(value: unknown): unknown {
 
 /** Redacts anything that looks like an email address or a phone number from free text the agent writes. */
 export function scrubPii(text: string): string {
+  return text.replace(/[\w.+-]+@[\w-]+\.[\w.-]+/g, "[redacted]").replace(/\+?\d[\d\s().-]{5,}\d/g, redactPhoneMatch);
+}
+
+const HEALTH_RE =
+  /\b(?:asthma\w*|nebuli[sz]ers?|inhalers?|meds|medic(?:al|ations?|ines?)|prescriptions?|insulin|oxygen|dialysis|diabet\w*|pregnan\w*|disab\w*|wheelchairs?|hospital\w*|illness\w*|sick\w*|injur\w*|cpap|chemo\w*|cancer|health)\b/i;
+
+/**
+ * The public line says nothing about anyone's health (policy §7). The prompt asks for that; this holds it in
+ * code: a part of the line that mentions a condition, a medicine or a medical device is dropped, the rest stays
+ * ("family of 5 displaced to motel, child with asthma lost meds" keeps "family of 5 displaced to motel").
+ */
+export function scrubHealth(text: string): string {
+  if (!HEALTH_RE.test(text)) return text;
   return text
-    .replace(/[\w.+-]+@[\w-]+\.[\w.-]+/g, "[redacted]")
-    .replace(/\+?\d[\d\s().-]{6,}\d/g, "[redacted]");
+    .split(/(?<=[,;.])\s+/)
+    .filter((part) => !HEALTH_RE.test(part))
+    .join(" ")
+    .replace(/[\s,;]+$/, "")
+    .trim();
+}
+
+const ISO_DATE_RE = /^(?:19|20)\d{2}-\d{2}-\d{2}/;
+
+/**
+ * Replacement for a phone-shaped match. A phone number has at least seven digits ("5551234" included); fewer
+ * is an amount or a count and stays. A date such as "2026-11-01" (or the "[Update 2026-11-09]" stamp on an
+ * applicant's reply) has the same shape and stays too; digits run on after a date are still a number to hide.
+ */
+export function redactPhoneMatch(match: string): string {
+  if ((match.match(/\d/g)?.length ?? 0) < 7) return match;
+  const open = match.startsWith("(") ? "(" : "";
+  const date = match.slice(open.length).match(ISO_DATE_RE)?.[0];
+  if (!date) return "[redacted]";
+  const digitsAfterDate = match.slice(open.length + date.length).match(/\d/g)?.length ?? 0;
+  return digitsAfterDate >= 7 ? `${open}${date}[redacted]` : match;
 }
 
 const REDACTED = "[redacted]";

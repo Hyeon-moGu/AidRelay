@@ -3,31 +3,27 @@
 // field, so a field added to a case later stays private until someone adds it here: contact details, the
 // applicant's private status link and the payout recipient never go out, and free text is scrubbed.
 import type { Decision } from "@/lib/agent/schema";
-import { scrubIdentity } from "@/lib/ledger/anonymize";
+import { redactPhoneMatch, scrubIdentity } from "@/lib/ledger/anonymize";
 import type { CaseDetail, OpsRow, OpsRun } from "@/lib/ops/rows";
 
 const REDACTED = "[redacted]";
 const EMAIL_RE = /[\w.+-]+@[\w-]+(?:\.[\w-]+)+/g;
-const PHONE_RE = /\(?\+?\d[\d\s().-]{6,}\d/g;
-const ISO_DATE_RE = /^(?:19|20)\d{2}-\d{2}-\d{2}/;
+const PHONE_RE = /\(?\+?\d[\d\s().-]{5,}\d/g;
 
 /**
  * Removes emails and phone numbers from text a visitor will read. A date such as the "[Update 2026-11-09]"
  * stamp on an applicant's reply looks like a phone number to the pattern and is left alone.
  */
 export function scrubContactText(text: string): string {
-  return text.replace(EMAIL_RE, REDACTED).replace(PHONE_RE, (match) => {
-    const open = match.startsWith("(") ? "(" : "";
-    const date = match.slice(open.length).match(ISO_DATE_RE)?.[0];
-    if (!date) return REDACTED;
-    const digitsAfterDate = match.slice(open.length + date.length).match(/\d/g)?.length ?? 0;
-    return digitsAfterDate >= 7 ? `${open}${date}${REDACTED}` : match;
-  });
+  return text.replace(EMAIL_RE, REDACTED).replace(PHONE_RE, redactPhoneMatch);
 }
 
-/** A queue row without the applicant's name and email. */
+/**
+ * A queue row without the applicant's name and email. The summary is scrubbed again on the way out, as the
+ * public ledger does, so a line stored before the evaluation scrubbed names is covered too.
+ */
 export function viewerRow(row: OpsRow): OpsRow {
-  return { ...row, name: "", email: "" };
+  return { ...row, ledgerSummary: scrubContactText(scrubIdentity(row.ledgerSummary, { name: row.name })), name: "", email: "" };
 }
 
 /** The case panel's data without contact details, and with the applicant's own name and address scrubbed from free text. */

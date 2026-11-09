@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { scrubIdentity, stripPii, zipPrefix } from "@/lib/ledger/anonymize";
+import { scrubHealth, scrubIdentity, stripPii, zipPrefix } from "@/lib/ledger/anonymize";
 
 describe("stripPii", () => {
   it("drops payer and contact fields at any depth, keeps money and ids", () => {
@@ -90,5 +90,52 @@ describe("zipPrefix", () => {
   it("keeps the first three digits only", () => {
     expect(zipPrefix("28501")).toBe("285");
     expect(zipPrefix("28501-1234")).toBe("285");
+  });
+});
+
+describe("scrubHealth (nothing about anyone's health on the public line, policy §7)", () => {
+  it("drops the part of the line that names a condition, a medicine or a device, and keeps the rest", () => {
+    expect(scrubHealth("Rental flooded ~2 ft, family of 5 displaced to motel, child with asthma lost meds and nebulizer")).toBe(
+      "Rental flooded ~2 ft, family of 5 displaced to motel",
+    );
+    expect(scrubHealth("Displaced; grandmother on oxygen; household of 4")).toBe("Displaced; household of 4");
+  });
+  it("leaves a line without health details exactly as it was, decimals included", () => {
+    const line = "Kitchen flooded ~2.5 ft, food and washer lost, home still habitable. Household of 3";
+    expect(scrubHealth(line)).toBe(line);
+  });
+});
+
+describe("the public ledger line when scrubHealth leaves nothing", () => {
+  it("still says what happened instead of an empty cell", async () => {
+    const { Timestamp } = await import("firebase-admin/firestore");
+    const { toLedgerRow } = await import("@/lib/ledger/public");
+    const row = toLedgerRow({
+      id: "C-090",
+      token: "t".repeat(32),
+      lang: "en",
+      zip: "28501",
+      householdSize: 3,
+      requestedAmountCents: null,
+      narrative: "",
+      photos: [],
+      docs: [],
+      contact: { name: "A B", email: "a@example.test" },
+      status: "paid",
+      tier: 2,
+      aiDecision: {
+        eligibility: "eligible",
+        tier: 2,
+        recommendedAmountCents: 25_000,
+        confidence: 0.9,
+        reasons: [],
+        redFlags: [],
+        followUpQuestions: [],
+        applicantLanguage: "en",
+        ledgerSummary: "Child's asthma medication lost",
+      },
+      timestamps: { created: Timestamp.fromMillis(1_700_000_000_000) },
+    });
+    expect(row.summary).toBe("Flood damage");
   });
 });
