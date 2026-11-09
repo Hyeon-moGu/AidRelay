@@ -4,6 +4,7 @@
 import { runCaseOfficer } from "@/lib/agent/officer";
 import { enqueueAgentRun } from "@/lib/agent/trigger";
 import { getDonation, recordDonationCapture } from "@/lib/db/repos/donations";
+import { getFund } from "@/lib/db/repos/fund";
 import { claimWebhookEvent, markWebhookHandled } from "@/lib/db/repos/webhookEvents";
 import { getEnv } from "@/lib/env";
 import { fail, ok } from "@/lib/http";
@@ -74,6 +75,9 @@ async function handleEvent(event: WebhookEvent): Promise<Record<string, unknown>
     if (!known && capture.customId !== getEnv().FUND_ID) {
       return { type, orderId, ignored: `capture for an unknown order (custom_id ${capture.customId ?? "none"})` };
     }
+    // raisedCents is kept in the fund's currency; a capture in another one is never added to it.
+    const currency = known?.currency ?? (await getFund()).currency;
+    if (capture.currency !== currency) return { type, orderId, ignored: `capture in ${capture.currency}, the fund counts ${currency}` };
 
     const result = await recordDonationCapture({
       orderId,

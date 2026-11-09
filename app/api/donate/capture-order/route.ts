@@ -1,6 +1,6 @@
 import { z } from "zod";
 import { enqueueAgentRun } from "@/lib/agent/trigger";
-import { recordDonationCapture } from "@/lib/db/repos/donations";
+import { getDonation, recordDonationCapture } from "@/lib/db/repos/donations";
 import { HttpError, handleRouteError, ok, parseJson } from "@/lib/http";
 import { stripPii } from "@/lib/ledger/anonymize";
 import { valueToCents } from "@/lib/money";
@@ -32,9 +32,18 @@ function issueOf(body: unknown): string | undefined {
 export async function POST(req: Request) {
   try {
     const { orderId } = await parseJson(req, Body);
+    // Only an order this fund created (create-order records it under PayPal's own id) is captured and counted,
+    // the same provenance check the webhook route makes. Another spelling of the id is not a second donation.
+    const known = await getDonation(orderId);
+    if (!known) throw new HttpError(404, "unknown order: start the donation again");
     const order = await captureOrFetch(orderId);
+    if (order.id !== orderId) throw new HttpError(400, "PayPal returned a different order");
     const capture = extractCapture(order);
     if (!capture) throw new HttpError(502, `PayPal returned order status ${order.status} without a capture`);
+    // raisedCents is kept in the fund's currency; a capture in another one is never added to it.
+    if (capture.amount.currency_code !== known.currency) {
+      throw new HttpError(502, `capture is in ${capture.amount.currency_code}, the fund counts ${known.currency}`);
+    }
 
     const amountCents = valueToCents(capture.amount.value);
     const result = await recordDonationCapture({
