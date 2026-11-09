@@ -82,10 +82,12 @@ export async function setCaseStatus(
   status: CaseStatus,
   audit: CaseAudit,
   patch: Partial<Omit<CaseDoc, "id" | "status">> = {},
+  opts: { clear?: readonly ClearableCaseField[] } = {},
 ): Promise<CaseDoc> {
   if (audit.actor === "agent") assertAgentStatusWrite(status);
   const db = getDb();
   const ref = db.collection(col.cases).doc(id);
+  const cleared = opts.clear ?? [];
   return db.runTransaction(async (tx) => {
     const snap = await tx.get(ref);
     if (!snap.exists) throw new Error(`case ${id} not found`);
@@ -96,17 +98,21 @@ export async function setCaseStatus(
     if (status === "approved" && !timestamps.approved) timestamps.approved = now;
     if (status === "paid" && !timestamps.paid) timestamps.paid = now;
     const update: Partial<CaseDoc> = { ...patch, status, timestamps };
-    tx.set(ref, update, { merge: true });
+    const write: Record<string, unknown> = { ...update };
+    for (const field of cleared) write[field] = FieldValue.delete();
+    tx.set(ref, write, { merge: true });
     auditInTx(tx, {
       actor: audit.actor,
       caseId: id,
       action: audit.action,
       policyClause: audit.policyClause,
       before: { status: before.status },
-      after: { status, ...summarize(patch) },
+      after: cleared.length ? { status, ...summarize(patch), cleared: [...cleared] } : { status, ...summarize(patch) },
       reason: audit.reason,
     });
-    return { ...before, ...update } as CaseDoc;
+    const after = { ...before, ...update } as CaseDoc;
+    for (const field of cleared) delete after[field];
+    return after;
   });
 }
 
@@ -153,8 +159,8 @@ export async function resetStaleEvaluating(nowMs = Date.now()): Promise<string[]
   return stuck.map((c) => c.id);
 }
 
-/** Fields `updateCase` may remove from a case. */
-export type ClearableCaseField = "applicantMessage" | "dupMatches";
+/** Fields `updateCase` and `setCaseStatus` may remove from a case. */
+export type ClearableCaseField = "applicantMessage" | "dupMatches" | "humanDecision";
 
 /**
  * Field update without a status change, audited. `clear` removes fields: an `undefined` in `patch` is

@@ -4,6 +4,7 @@ import { Timestamp } from "firebase-admin/firestore";
 import { z } from "zod";
 import { GuardrailError, limitsFromEnv } from "@/lib/agent/guardrails";
 import { amountForCase } from "@/lib/agent/tools";
+import { assertTransition } from "@/lib/agent/transitions";
 import { enqueueAgentRun } from "@/lib/agent/trigger";
 import { getCase, setCaseStatus } from "@/lib/db/repos/cases";
 import { releaseFunds } from "@/lib/db/repos/fund";
@@ -26,6 +27,13 @@ export const DecisionRequestSchema = z.object({
   lang: z.enum(["en", "es"]).optional(),
 });
 export type DecisionRequest = z.infer<typeof DecisionRequestSchema>;
+
+/**
+ * Reopening a case or asking the applicant a question takes back the volunteer's earlier decision. Left on
+ * the case, an old approval would still count as "a human approved it": the agent could then neither
+ * re-evaluate the case (the state machine protects human approvals) nor be stopped from paying it once parked.
+ */
+const WITHDRAW_DECISION = { clear: ["humanDecision"] } as const;
 
 export interface DecisionOutcome {
   caseId: string;
@@ -63,6 +71,8 @@ export async function applyHumanDecision(req: DecisionRequest): Promise<{ result
           break;
         }
         case "reject": {
+          // Checked before the reservation is touched: a refused decision must leave the money where it was.
+          assertTransition(OPS_ACTOR, c.status, "rejected");
           await releaseIfReserved(c);
           const humanDecision = { approved: false, by: OPS_ACTOR, note: req.note ? scrubPii(req.note) : undefined, at: Timestamp.now() };
           const updated = await setCaseStatus(
@@ -78,6 +88,7 @@ export async function applyHumanDecision(req: DecisionRequest): Promise<{ result
           const lang = req.lang ?? normalizeLang(c.lang);
           const questions = (req.questions ?? []).map((q) => scrubPii(q.trim())).filter(Boolean);
           if (questions.length === 0) throw new Error("write at least one question");
+          assertTransition(OPS_ACTOR, c.status, "needs_info");
           await releaseIfReserved(c);
           const text = [MESSAGES[lang].followUpIntro, ...questions.map((q) => `- ${q}`)].join("\n");
           const updated = await setCaseStatus(
@@ -85,12 +96,21 @@ export async function applyHumanDecision(req: DecisionRequest): Promise<{ result
             "needs_info",
             { actor: OPS_ACTOR, action: "case.human_request_info", policyClause: "P-5", reason: `${questions.length} question(s) by operator` },
             { applicantMessage: { lang, text, at: Timestamp.now() } },
+            WITHDRAW_DECISION,
           );
           results.push({ caseId, ok: true, status: updated.status });
           break;
         }
         case "reopen": {
-          const updated = await setCaseStatus(caseId, "needs_review", { actor: OPS_ACTOR, action: "case.human_reopened", reason: req.note ? scrubPii(req.note) : "reopened by operator" });
+          assertTransition(OPS_ACTOR, c.status, "needs_review");
+          await releaseIfReserved(c);
+          const updated = await setCaseStatus(
+            caseId,
+            "needs_review",
+            { actor: OPS_ACTOR, action: "case.human_reopened", reason: req.note ? scrubPii(req.note) : "reopened by operator" },
+            {},
+            WITHDRAW_DECISION,
+          );
           results.push({ caseId, ok: true, status: updated.status });
           break;
         }
