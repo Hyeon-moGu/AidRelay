@@ -9,6 +9,7 @@ import { applyCodeRules, countUsableEvidence, decideCase, findDuplicates, loadCa
 import { assertPayable, autoApproveCheck, decideStatus, GuardrailError, velocityCheck, type AutoApproveLimits } from "@/lib/agent/guardrails";
 import type { Usage } from "@/lib/agent/models";
 import { POLICY } from "@/lib/agent/policy";
+import { stripDelimiters } from "@/lib/agent/prompts";
 import { CASE_STATUSES, type Decision } from "@/lib/agent/schema";
 import { col, getDb } from "@/lib/db/firestore";
 import { appendToolCall } from "@/lib/db/repos/agentRuns";
@@ -19,7 +20,7 @@ import { getFund, InsufficientFundsError, releaseFunds, reserveFunds } from "@/l
 import { createPayoutForCase, getPayout, refreshPayoutStatus } from "@/lib/db/repos/payouts";
 import { amountForCase, fundBalanceCents, type CaseDoc } from "@/lib/db/types";
 import { MESSAGES, normalizeLang } from "@/lib/i18n/messages";
-import { scrubPii } from "@/lib/ledger/anonymize";
+import { scrubIdentity, scrubPii } from "@/lib/ledger/anonymize";
 import { payoutNote } from "@/lib/paypal/payouts";
 
 export interface RunContext {
@@ -76,7 +77,8 @@ function truncate(value: unknown): unknown {
  * excerpt of the narrative (the full text goes to the decision call, wrapped as untrusted data).
  */
 export function caseView(c: CaseDoc) {
-  const excerpt = scrubPii(c.narrative.replace(/<\/?applicant_narrative>/gi, "")).slice(0, 200);
+  // No name or street address either: what the orchestrator reads can end up in a run summary a visitor sees.
+  const excerpt = scrubIdentity(scrubPii(stripDelimiters(c.narrative)), c.contact).slice(0, 200);
   return {
     id: c.id,
     status: c.status,
@@ -117,6 +119,13 @@ async function releaseIfReserved(c: CaseDoc, reason: string): Promise<void> {
   if ((c.reservedCents ?? 0) > 0 && c.status !== "paying" && c.status !== "paid") {
     await releaseFunds(c.id, { actor: "agent", policyClause: "P-9.6", reason });
   }
+}
+
+/** P-10: an agent-approved case past the automation limit waits for a human; its reservation goes back first. */
+async function handOverAtLimit(c: CaseDoc, err: GuardrailError): Promise<void> {
+  if (c.status !== "approved" && c.status !== "parked") return;
+  await releaseIfReserved(c, "automation limit reached (P-10)");
+  await setCaseStatus(c.id, "needs_review", { actor: "agent", action: "case.escalated", policyClause: "P-10", reason: err.message });
 }
 
 const inPayment = (c: Pick<CaseDoc, "status">): boolean => c.status === "paying" || c.status === "paid";
@@ -206,11 +215,12 @@ export function buildTools(ctx: RunContext): ToolSet {
             const images = await loadCaseImages(c);
             const prescreen = await prescreenPhotos(images, ctx.usage);
             const usableEvidence = countUsableEvidence(images, prescreen);
+            const evidenceInfo = { usable: usableEvidence, descriptions: prescreen?.map((p) => p.description) };
             const decideArgs = { c, images, prescreen, dupMatches, policyText: ctx.policyText, limits: ctx.limits, usage: ctx.usage };
 
             let decision: Decision;
             try {
-              decision = applyCodeRules(await decideCase(decideArgs), c, dupMatches, { usable: usableEvidence });
+              decision = applyCodeRules(await decideCase(decideArgs), c, dupMatches, evidenceInfo);
             } catch (err) {
               if (err instanceof APICallError) throw err; // transport / rate limit: handled below, not a verdict
               const reason = `decision could not be parsed: ${err instanceof NoObjectGeneratedError ? "model output did not match the schema" : err instanceof Error ? err.message.slice(0, 200) : String(err)}`;
@@ -235,13 +245,13 @@ export function buildTools(ctx: RunContext): ToolSet {
             let secondAgrees: boolean | undefined;
             const autoCandidate = amount !== null && autoApproveCheck(decision, amount, ctx.limits, usableEvidence).ok;
             if (autoCandidate && ctx.limits.requireSecondEvaluation) {
-              second = applyCodeRules(await decideCase({ ...decideArgs, secondOpinion: true }), c, dupMatches, { usable: usableEvidence });
+              second = applyCodeRules(await decideCase({ ...decideArgs, secondOpinion: true }), c, dupMatches, evidenceInfo);
               secondAgrees = second.eligibility === decision.eligibility && second.tier === decision.tier;
               if (!secondAgrees) {
                 next = {
                   status: "needs_review",
                   clause: "P-9.9",
-                  reason: `independent evaluations disagree: ${decision.eligibility}/tier ${decision.tier} vs ${second.eligibility}/tier ${second.tier}`,
+                  reason: `the two evaluations disagree: ${decision.eligibility}/tier ${decision.tier} vs ${second.eligibility}/tier ${second.tier}`,
                 };
               } else {
                 decision = { ...decision, confidence: Math.min(decision.confidence, second.confidence) };
@@ -265,7 +275,13 @@ export function buildTools(ctx: RunContext): ToolSet {
               const text = [MESSAGES[lang].followUpIntro, ...decision.followUpQuestions.map((q) => `- ${scrubPii(q)}`)].join("\n");
               patch.applicantMessage = { lang, text, at: Timestamp.now() };
             }
-            await setCaseStatus(c.id, next.status, { actor: "agent", action: "case.evaluated", policyClause: next.clause, reason: next.reason }, patch);
+            // What this evaluation did not produce is removed, not left from an earlier one: an old amount would
+            // otherwise still count as the agent's recommendation for a volunteer's one-click approval.
+            const clear = [
+              ...(amount === null ? (["approvedAmountCents"] as const) : []),
+              ...(second === undefined ? (["aiDecisionSecond", "secondEvaluationAgrees"] as const) : []),
+            ];
+            await setCaseStatus(c.id, next.status, { actor: "agent", action: "case.evaluated", policyClause: next.clause, reason: next.reason }, patch, { clear });
 
             return {
               caseId: c.id,
@@ -366,12 +382,28 @@ export function buildTools(ctx: RunContext): ToolSet {
               limits: ctx.limits,
             }).path;
           } catch (err) {
-            // An agent-approved case that hits the P-10 limit waits for a human; its reservation goes back first.
-            if (err instanceof GuardrailError && err.code === "velocity_limit" && !humanApproved && (c.status === "approved" || c.status === "parked")) {
-              await releaseIfReserved(c, "automation limit reached (P-10)");
-              await setCaseStatus(c.id, "needs_review", { actor: "agent", action: "case.escalated", policyClause: "P-10", reason: err.message });
-            }
+            if (err instanceof GuardrailError && err.code === "velocity_limit" && !humanApproved) await handOverAtLimit(c, err);
             throw err;
+          }
+
+          // P-8 in code: the case is paid now only if the plan over every waiting case would pay it, so a call
+          // out of order cannot take money a family ahead of it in the queue still needs.
+          const queue = await loadWaitingQueue();
+          const candidate = { id: c.id, tier: c.tier ?? c.aiDecision?.tier ?? 0, amountCents: amount, createdAtMs: c.timestamps.created.toMillis() };
+          if (!wouldBePaid(candidate, queue.candidates, queue.queueBalanceCents)) {
+            // Another run may have started paying this very case since it was read (it then left the queue,
+            // reservation and all): that is not a refusal, just nothing left to do.
+            const latest = await getCase(c.id);
+            if (latest && inPayment(latest)) return alreadyInPayment(latest);
+            if (latest?.status === "approved") {
+              await setCaseStatus(c.id, "parked", { actor: "agent", action: "case.parked", policyClause: "P-8", reason: "a case ahead of it in the P-8 order still needs the balance" }).catch(async (err) => {
+                const again = await getCase(c.id);
+                if (!(again && inPayment(again))) throw err;
+              });
+            }
+            const now = await getCase(c.id);
+            if (now && inPayment(now)) return alreadyInPayment(now);
+            return { ok: false, parked: true, caseId: c.id, clause: "P-8", note: "a case ahead of this one in the P-8 order still needs the balance; call plan_allocation and pay in its order" };
           }
 
           try {
@@ -406,6 +438,7 @@ export function buildTools(ctx: RunContext): ToolSet {
               policyClause: path === "auto" ? "P-9" : "human decision",
               reason: path === "auto" ? "auto-approved payout" : "human-approved payout",
               autoApproved: path === "auto",
+              velocity: path === "auto" ? ctx.limits.velocity : undefined,
             });
             return { ok: true, caseId: c.id, path, amountCents: amount, payoutBatchId: payout.payoutBatchId ?? null, batchStatus: payout.batchStatus ?? payout.status };
           } catch (err) {
@@ -414,6 +447,8 @@ export function buildTools(ctx: RunContext): ToolSet {
             // surfaces as the error it is.
             const latest = await getCase(c.id);
             if (latest && inPayment(latest)) return alreadyInPayment(latest);
+            // The P-10 check inside the claim found the limit reached by a payout made in the meantime.
+            if (latest && err instanceof GuardrailError && err.code === "velocity_limit" && path === "auto") await handOverAtLimit(latest, err);
             throw err;
           }
         }),
@@ -457,7 +492,8 @@ export function buildTools(ctx: RunContext): ToolSet {
         logged(ctx, "escalate", args, args.clause, async () => {
           const c = await getCase(args.caseId);
           if (!c) throw new Error(`case ${args.caseId} not found`);
-          const reason = scrubPii(args.reasons.join("; ")).slice(0, 1000);
+          // "...cannot pay." + "; " would read ".;": each reason loses its own closing punctuation first.
+          const reason = scrubPii(args.reasons.map((r) => r.trim().replace(/[.;\s]+$/, "")).join("; ")).slice(0, 1000);
           await releaseIfReserved(c, `escalated: ${reason.slice(0, 120)}`);
           await setCaseStatus(args.caseId, "needs_review", { actor: "agent", action: "case.escalated", policyClause: args.clause, reason });
           return { ok: true, caseId: args.caseId, status: "needs_review" };
@@ -505,11 +541,6 @@ export interface WaitingPlan {
   remainingCents: number;
 }
 
-/**
- * P-8 over every case waiting for money, in code: what to pay now and in which order, and which approved
- * cases to park. The plan_allocation tool and the sweep both use it, so the sweep can tell without a model
- * call whether there is anything to pay.
- */
 /** The cases waiting for money as P-8 sees them, and the balance they share. */
 async function loadWaitingQueue(): Promise<{ fundBalanceCents: number; queueBalanceCents: number; candidates: PlannedCase[]; blocked: WaitingPlan["blocked"] }> {
   const [fund, waiting] = await Promise.all([getFund(), listCases(["approved", "parked"])]);
@@ -533,6 +564,11 @@ async function loadWaitingQueue(): Promise<{ fundBalanceCents: number; queueBala
   return { fundBalanceCents: balance, queueBalanceCents: balance + reservedByOpen, candidates, blocked };
 }
 
+/**
+ * P-8 over every case waiting for money, in code: what to pay now and in which order, and which approved
+ * cases to park. The plan_allocation tool and the sweep both use it, so the sweep can tell without a model
+ * call whether there is anything to pay.
+ */
 export async function planWaitingCases(): Promise<WaitingPlan> {
   const queue = await loadWaitingQueue();
   const { blocked } = queue;

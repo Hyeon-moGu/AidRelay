@@ -148,6 +148,7 @@ export class FakeDocRef {
 }
 
 type Filter = { field: string; op: string; value: unknown };
+export type FakeQuerySnapshot = { empty: boolean; size: number; docs: FakeSnapshot[] };
 
 export class FakeQuery {
   constructor(
@@ -166,7 +167,11 @@ export class FakeQuery {
   limit(n: number): FakeQuery {
     return new FakeQuery(this.name, this.store, this.filters, this.order, n);
   }
-  async get(): Promise<{ empty: boolean; size: number; docs: FakeSnapshot[] }> {
+  async get(): Promise<FakeQuerySnapshot> {
+    return this._run();
+  }
+  /** Synchronous evaluation, so a transaction can re-run the query at commit to detect a changed result. */
+  _run(): FakeQuerySnapshot {
     let rows = [...this.store.entries()].map(([id, doc]) => ({ id, doc }));
     for (const f of this.filters) {
       rows = rows.filter(({ doc }) => {
@@ -219,8 +224,10 @@ export class FakeCollection extends FakeQuery {
 export class FakeTransaction {
   private readonly writes: Array<() => void> = [];
   private readonly pendingCreates = new Set<string>();
-  async get(ref: FakeDocRef): Promise<FakeSnapshot> {
-    return ref._snapshot();
+  get(ref: FakeDocRef): Promise<FakeSnapshot>;
+  get(query: FakeQuery): Promise<FakeQuerySnapshot>;
+  async get(target: FakeDocRef | FakeQuery): Promise<FakeSnapshot | FakeQuerySnapshot> {
+    return target instanceof FakeQuery ? target._run() : target._snapshot();
   }
   set(ref: FakeDocRef, data: Doc, opts?: { merge?: boolean }): this {
     this.writes.push(() => ref._set(data, opts));

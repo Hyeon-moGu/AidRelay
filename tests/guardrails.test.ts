@@ -27,7 +27,7 @@ const eligible: Decision = {
 };
 
 const base: PayableInput = {
-  caseStatus: "new",
+  caseStatus: "approved",
   aiDecision: eligible,
   humanApproved: false,
   amountCents: 25_000,
@@ -164,6 +164,14 @@ describe("assertPayable", () => {
     expect(codeOf(() => assertPayable({ ...base, recentAutoPayouts: burst, nowMs: now }))).toBe("velocity_limit");
     expect(assertPayable({ ...base, humanApproved: true, recentAutoPayouts: burst, nowMs: now })).toEqual({ path: "human" });
   });
+  it("auto path only for a case the agent's evaluation approved or parked: an old verdict on a reopened case never pays", () => {
+    expect(assertPayable({ ...base, caseStatus: "parked" })).toEqual({ path: "auto" });
+    for (const caseStatus of ["new", "evaluating", "needs_info", "needs_review"] as const) {
+      expect(codeOf(() => assertPayable({ ...base, caseStatus })), caseStatus).toBe("status_not_payable");
+    }
+    // A volunteer's approval is the human path, whatever the agent's evaluation said.
+    expect(assertPayable({ ...base, caseStatus: "approved", humanApproved: true })).toEqual({ path: "human" });
+  });
   it("rejected cases and bad amounts", () => {
     expect(codeOf(() => assertPayable({ ...base, caseStatus: "rejected", humanApproved: true }))).toBe("status_not_payable");
     expect(codeOf(() => assertPayable({ ...base, amountCents: 0 }))).toBe("bad_amount");
@@ -211,6 +219,17 @@ describe("decideStatus, the ten seed cases and the hardening rules", () => {
   });
   it("C-010: outlier + evidence mismatch → needs_review even though eligibility is needs_info", () => {
     expect(decideStatus(d({ eligibility: "needs_info", tier: null, redFlags: ["amount_outlier", "evidence_mismatch"] }), null, limits, ok).status).toBe("needs_review");
+  });
+  it("cites the clause each red flag rests on, not P-4 for all of them", () => {
+    const c010 = decideStatus(d({ eligibility: "needs_info", tier: null, redFlags: ["amount_outlier", "evidence_mismatch"] }), null, limits, ok);
+    expect(c010).toMatchObject({ status: "needs_review", clause: "P-3" });
+    expect(c010.reason).toBe("red flags: evidence_mismatch (P-3), amount_outlier (P-7)");
+    expect(decideStatus(d({ redFlags: ["amount_outlier"] }), 25_000, limits, ok).clause).toBe("P-7");
+    expect(decideStatus(d({ redFlags: ["instruction_in_narrative"] }), 25_000, limits, ok).clause).toBe("P-9.5");
+    expect(decideStatus(d({ redFlags: ["evidence_mismatch", "duplicate_contact"] }), 25_000, limits, ok).clause).toBe("P-4");
+  });
+  it("states amounts in dollars where a volunteer reads them", () => {
+    expect(autoApproveCheck(d({ tier: 3 }), 35_000, limits)).toMatchObject({ code: "over_auto_limit", detail: "$350 is above the $250 auto-approve limit" });
   });
   it("ineligible never becomes rejected", () => {
     expect(decideStatus(d({ eligibility: "ineligible" }), null, limits, ok).status).toBe("needs_review");

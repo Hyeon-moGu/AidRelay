@@ -1,6 +1,7 @@
 // Rules the agent cannot talk its way around. Pure functions; every branch is unit-tested.
 import { AGENT_WRITABLE_STATUSES, type CaseStatus, type Decision, type RedFlag } from "@/lib/agent/schema";
 import { humanMaxCents, POLICY, type Tier } from "@/lib/agent/policy";
+import { moneyWhole } from "@/lib/format";
 
 export type GuardrailCode =
   | "agent_cannot_reject"
@@ -79,7 +80,7 @@ export function autoApproveCheck(
     return { ok: false, code: "below_min_tier", clause: "P-9.2", detail: `tier ${decision.tier} < ${limits.minTier}` };
   }
   if (amountCents > limits.limitCents) {
-    return { ok: false, code: "over_auto_limit", clause: "P-9.3", detail: `${amountCents} > ${limits.limitCents}` };
+    return { ok: false, code: "over_auto_limit", clause: "P-9.3", detail: `${moneyWhole(amountCents)} is above the ${moneyWhole(limits.limitCents)} auto-approve limit` };
   }
   if (decision.confidence < limits.minConfidence) {
     return { ok: false, code: "low_confidence", clause: "P-9.4", detail: `${decision.confidence} < ${limits.minConfidence}` };
@@ -108,7 +109,12 @@ export function velocityCheck(recent: readonly RecentAutoPayout[], amountCents: 
   }
   const sumLastDay = recent.filter((r) => r.atMs >= dayAgo).reduce((s, r) => s + r.amountCents, 0);
   if (sumLastDay + amountCents > limits.maxAutoPaidCentsPer24h) {
-    return { ok: false, code: "velocity_limit", clause: "P-10", detail: `${sumLastDay + amountCents} cents in 24h would exceed ${limits.maxAutoPaidCentsPer24h}` };
+    return {
+      ok: false,
+      code: "velocity_limit",
+      clause: "P-10",
+      detail: `${moneyWhole(sumLastDay + amountCents)} paid without a human in 24 hours would exceed ${moneyWhole(limits.maxAutoPaidCentsPer24h)}`,
+    };
   }
   return { ok: true };
 }
@@ -150,16 +156,22 @@ export function assertPayable(input: PayableInput): { path: PayablePath } {
   if (input.caseStatus === "rejected") {
     throw new GuardrailError("status_not_payable", "case was rejected by a human", "P-9");
   }
+  // Without a human, a payout rests on the evaluation the agent has just made: only a case that evaluation
+  // approved, or parked for money, qualifies. A case back in `new` (the applicant answered a question) is
+  // evaluated again first, so an old verdict never pays.
+  if (!input.humanApproved && input.caseStatus !== "approved" && input.caseStatus !== "parked") {
+    throw new GuardrailError("status_not_payable", `auto-approve refused: the case is ${input.caseStatus}; evaluate it first`, "P-9");
+  }
   if (input.fundBalanceCents + input.caseReservedCents < input.amountCents) {
     throw new GuardrailError(
       "insufficient_funds",
-      `balance ${input.fundBalanceCents + input.caseReservedCents} < ${input.amountCents}`,
+      `balance ${moneyWhole(input.fundBalanceCents + input.caseReservedCents)} does not cover ${moneyWhole(input.amountCents)}`,
       "P-9.6",
     );
   }
   if (input.humanApproved) {
     if (input.amountCents > input.limits.humanMaxCents) {
-      throw new GuardrailError("over_human_cap", `${input.amountCents} exceeds the human ceiling ${input.limits.humanMaxCents}`, "P-7");
+      throw new GuardrailError("over_human_cap", `${moneyWhole(input.amountCents)} exceeds the human ceiling of ${moneyWhole(input.limits.humanMaxCents)}`, "P-7");
     }
     return { path: "human" };
   }
@@ -186,6 +198,26 @@ export const REVIEW_FLAGS: readonly RedFlag[] = [
   "instruction_in_narrative",
 ];
 
+/** The clause each review flag rests on, so the audit trail cites the rule that actually sent the case to a human. */
+export const REVIEW_FLAG_CLAUSE: Record<Exclude<RedFlag, "zip_outside_declared_area">, string> = {
+  duplicate_photo_hash: "P-4",
+  duplicate_address: "P-4",
+  duplicate_contact: "P-4",
+  evidence_mismatch: "P-3",
+  instruction_in_narrative: "P-9.5",
+  amount_outlier: "P-7",
+};
+
+/** Which flag names the clause when several are raised: one grant per household first, then the evidence. */
+const REVIEW_FLAG_ORDER: ReadonlyArray<keyof typeof REVIEW_FLAG_CLAUSE> = [
+  "duplicate_photo_hash",
+  "duplicate_address",
+  "duplicate_contact",
+  "evidence_mismatch",
+  "instruction_in_narrative",
+  "amount_outlier",
+];
+
 export type NextStatus = Extract<CaseStatus, "needs_info" | "needs_review" | "parked" | "approved">;
 
 export interface DecideContext {
@@ -210,9 +242,13 @@ export function decideStatus(decision: Decision, amountCents: number | null, lim
   clause: string;
   reason: string;
 } {
-  const reviewFlags = decision.redFlags.filter((f) => REVIEW_FLAGS.includes(f));
+  const reviewFlags = REVIEW_FLAG_ORDER.filter((f) => decision.redFlags.includes(f));
   if (reviewFlags.length > 0) {
-    return { status: "needs_review", clause: "P-4", reason: `red flags: ${reviewFlags.join(", ")}` };
+    return {
+      status: "needs_review",
+      clause: REVIEW_FLAG_CLAUSE[reviewFlags[0]],
+      reason: `red flags: ${reviewFlags.map((f) => `${f} (${REVIEW_FLAG_CLAUSE[f]})`).join(", ")}`,
+    };
   }
   const outsideArea = decision.redFlags.includes("zip_outside_declared_area");
   if (outsideArea && ctx.applicantAnswered) {

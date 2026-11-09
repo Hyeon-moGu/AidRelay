@@ -2,11 +2,11 @@
 // deterministic parts of the policy (duplicates, declared area, evidence, P-6/P-7 amounts) on top.
 import { generateObject } from "ai";
 import { z } from "zod";
-import { isNearDuplicate } from "@/lib/dedupe/phash";
+import { hammingDistance, isNearDuplicate } from "@/lib/dedupe/phash";
 import { normalizeAddress, normalizeEmail, normalizePhone } from "@/lib/db/repos/cases";
 import type { CaseDoc, DupMatch } from "@/lib/db/types";
 import { MESSAGES, normalizeLang } from "@/lib/i18n/messages";
-import { scrubIdentity, scrubPii } from "@/lib/ledger/anonymize";
+import { scrubHealth, scrubIdentity, scrubPii } from "@/lib/ledger/anonymize";
 import { addUsage, officerModel, prescreenModel, type Usage } from "@/lib/agent/models";
 import { isAmountOutlier, isInsideDeclaredArea, isTier, maxRecommendedCents, POLICY } from "@/lib/agent/policy";
 import { decisionSystem, decisionUserText, policySystemMessage, PRESCREEN_SYSTEM } from "@/lib/agent/prompts";
@@ -19,9 +19,17 @@ export interface ModelImage {
   mediaType: "image/jpeg";
 }
 
-/** Downloads and resizes the case's photos (max 3) and documents (max 1). Missing files are skipped, not fatal. */
+/** What one evaluation looks at: the newest photos and the newest document. */
+export const MODEL_PHOTOS = 3;
+export const MODEL_DOCS = 1;
+
+/**
+ * Downloads and resizes the case's newest photos (max 3) and newest document (max 1). An applicant's reply
+ * adds files after the first ones, and those are the answer to the question asked, so they come first in
+ * line. Missing files are skipped, not fatal.
+ */
 export async function loadCaseImages(c: CaseDoc): Promise<ModelImage[]> {
-  const paths = [...c.photos.slice(0, 3), ...c.docs.slice(0, 1)];
+  const paths = [...c.photos.slice(-MODEL_PHOTOS), ...c.docs.slice(-MODEL_DOCS)];
   const images: ModelImage[] = [];
   for (const p of paths) {
     try {
@@ -53,7 +61,7 @@ export function findDuplicates(c: CaseDoc, others: readonly CaseDoc[]): DupMatch
       for (const oh of o.photoHashes ?? []) {
         if (isNearDuplicate(h, oh)) {
           by.push("photo");
-          photoDistance = 0;
+          photoDistance = hammingDistance(h, oh);
           break;
         }
       }
@@ -171,8 +179,8 @@ export async function decideCase(a: DecideArgs): Promise<Decision> {
     householdSize: a.c.householdSize,
     requestedAmountCents: a.c.requestedAmountCents,
     narrative: a.c.narrative,
-    photoCount: a.c.photos.length,
-    docCount: a.c.docs.length,
+    photoCount: Math.min(a.c.photos.length, MODEL_PHOTOS),
+    docCount: Math.min(a.c.docs.length, MODEL_DOCS),
     applicantReplies: a.c.applicantReplies ?? 0,
     prescreen: a.prescreen,
     duplicates: a.dupMatches.map((d) => ({ caseId: d.caseId, by: d.by })),
@@ -197,7 +205,10 @@ export async function decideCase(a: DecideArgs): Promise<Decision> {
   return normalizeDecision(DecisionSchema.parse(result.object));
 }
 
-/** Public-ledger text: no emails, no phone numbers, at most 140 characters. */
+/**
+ * Public-ledger text: no emails, no phone numbers, at most 140 characters. Cut last: applyCodeRules removes
+ * the applicant's name and address first, so a cut never leaves part of a name behind.
+ */
 export function scrubSummary(text: string): string {
   return scrubPii(text).slice(0, 140);
 }
@@ -224,13 +235,16 @@ export function normalizeDecision(d: Decision): Decision {
     redFlags: [...new Set(d.redFlags)],
     followUpQuestions: d.followUpQuestions.map((q) => q.trim()).filter((q) => q.length > 0),
     applicantLanguage: normalizeLang(d.applicantLanguage),
-    ledgerSummary: scrubSummary(d.ledgerSummary.trim()),
+    // Cut to 140 characters only in applyCodeRules, after the name and address are gone.
+    ledgerSummary: scrubPii(d.ledgerSummary.trim()).slice(0, 1000),
   };
 }
 
 export interface EvidenceInfo {
   /** Usable photos/documents (P-3, P-9.8). */
   usable: number;
+  /** The pre-screen's one-line descriptions, scanned for instructions written inside the images. */
+  descriptions?: readonly string[];
 }
 
 /**
@@ -248,15 +262,19 @@ export function applyCodeRules(decision: Decision, c: CaseDoc, dupMatches: DupMa
   if (!isInsideDeclaredArea(c.zip)) flags.add("zip_outside_declared_area");
   if (isAmountOutlier(c.requestedAmountCents)) flags.add("amount_outlier");
   if (detectInstructionInjection(c.narrative).length > 0) flags.add("instruction_in_narrative");
+  // Writing inside a photo reaches the decision through the pre-screen's descriptions: scanned the same way.
+  if ((evidence?.descriptions ?? []).some((d) => detectInstructionInjection(d).length > 0)) flags.add("instruction_in_narrative");
 
   const lang = normalizeLang(decision.applicantLanguage || c.lang);
   let eligibility = decision.eligibility;
   const followUpQuestions = [...decision.followUpQuestions];
   // P-2: an address outside the declared area gets the proof-of-residence question once, together with anything
   // else the applicant is asked. Once they have answered, a volunteer decides (decideStatus) and it is not asked again.
+  // An "ineligible" answer outside the area is asked too: decideStatus sends it to needs_info, and a follow-up
+  // message without the question would leave the applicant nothing to answer.
   if (flags.has("zip_outside_declared_area") && !(c.applicantReplies ?? 0)) {
     if (eligibility === "eligible") eligibility = "needs_info";
-    if (eligibility === "needs_info" && !followUpQuestions.includes(MESSAGES[lang].proofOfResidence)) followUpQuestions.push(MESSAGES[lang].proofOfResidence);
+    if (!followUpQuestions.includes(MESSAGES[lang].proofOfResidence)) followUpQuestions.push(MESSAGES[lang].proofOfResidence);
   }
   if (evidence && evidence.usable < POLICY.autoApproveMinEvidence && eligibility === "eligible") {
     eligibility = "needs_info";
@@ -266,13 +284,19 @@ export function applyCodeRules(decision: Decision, c: CaseDoc, dupMatches: DupMa
   const tier = decision.tier;
   const recommendedAmountCents = eligibility === "eligible" && isTier(tier) ? maxRecommendedCents(tier, c.householdSize) : null;
 
+  // The model's reasons and questions travel further than the case: into the orchestrator's view of it, and
+  // from there into run summaries a visitor of the open console reads. They lose the applicant's own name and
+  // street address too.
+  const withoutIdentity = (text: string) => scrubIdentity(text, c.contact);
   return {
     ...decision,
     eligibility,
     recommendedAmountCents,
     redFlags: [...flags],
-    followUpQuestions,
-    // The public line never carries the applicant's own name or street address (policy §7).
-    ledgerSummary: scrubSummary(scrubIdentity(decision.ledgerSummary, c.contact)),
+    reasons: decision.reasons.map((r) => ({ ...r, evidence: withoutIdentity(r.evidence) })),
+    followUpQuestions: followUpQuestions.map(withoutIdentity),
+    // The public line never carries the applicant's own name or street address, nor anything about anyone's
+    // health (policy §7).
+    ledgerSummary: scrubSummary(scrubHealth(scrubIdentity(decision.ledgerSummary, c.contact))),
   };
 }

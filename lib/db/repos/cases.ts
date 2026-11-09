@@ -160,7 +160,7 @@ export async function resetStaleEvaluating(nowMs = Date.now()): Promise<string[]
 }
 
 /** Fields `updateCase` and `setCaseStatus` may remove from a case. */
-export type ClearableCaseField = "applicantMessage" | "dupMatches" | "humanDecision";
+export type ClearableCaseField = "applicantMessage" | "dupMatches" | "humanDecision" | "approvedAmountCents" | "aiDecisionSecond" | "secondEvaluationAgrees";
 
 /**
  * Field update without a status change, audited. `clear` removes fields: an `undefined` in `patch` is

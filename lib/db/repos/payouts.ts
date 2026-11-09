@@ -1,6 +1,6 @@
 import { randomUUID } from "node:crypto";
 import { FieldValue, Timestamp } from "firebase-admin/firestore";
-import { assertAgentStatusWrite, GuardrailError } from "@/lib/agent/guardrails";
+import { assertAgentStatusWrite, GuardrailError, velocityCheck, type VelocityLimits } from "@/lib/agent/guardrails";
 import { assertTransition } from "@/lib/agent/transitions";
 import { col, getDb } from "@/lib/db/firestore";
 import { auditInTx, writeAudit } from "@/lib/db/repos/audit";
@@ -36,12 +36,18 @@ export interface CreatePayoutArgs {
   reason: string;
   /** No human approved it: recorded in auto_approvals inside the claim transaction (P-10). */
   autoApproved: boolean;
+  /**
+   * P-10 limits for an unattended payout. They are checked again inside the claim transaction, against the
+   * same auto_approvals range it writes to, so parallel tool calls or concurrent runs cannot all pass a check
+   * made before any of them was recorded.
+   */
+  velocity?: VelocityLimits;
 }
 
 /**
  * The only path that calls PayPal Payouts. Caller must already have passed guardrails.assertPayable.
  * Step 1 (transaction): claim payouts/{caseId}, fails if any payout exists for the case, move the case
- * to `paying`, and (P-10) record the auto approval. Step 2: PayPal. Step 3 (transaction): record the batch
+ * to `paying`, and (P-10) check the limits and record the auto approval. Step 2: PayPal. Step 3 (transaction): record the batch
  * id without clobbering a status a fast webhook may already have written. A crash between 1 and 2 leaves a
  * `creating` record that blocks a second attempt (never two payouts) until an operator sends the same
  * request again from the console (`retryFailedPayout`).
@@ -62,6 +68,17 @@ export async function createPayoutForCase(args: CreatePayoutArgs): Promise<Payou
     assertTransition(args.actor, c.status, "paying", { humanApproved: !!c.humanDecision?.approved });
     if ((c.reservedCents ?? 0) !== args.amountCents) {
       throw new Error(`case ${args.caseId} has ${c.reservedCents ?? 0} reserved, payout asks ${args.amountCents}`);
+    }
+    if (args.autoApproved && args.velocity) {
+      const since = Timestamp.fromMillis(now.toMillis() - 86_400_000);
+      const recent = await tx.get(db.collection(col.autoApprovals).where("at", ">=", since));
+      const v = velocityCheck(
+        recent.docs.map((d) => ({ amountCents: d.data().amountCents as number, atMs: (d.data().at as Timestamp).toMillis() })),
+        args.amountCents,
+        now.toMillis(),
+        args.velocity,
+      );
+      if (!v.ok) throw new GuardrailError(v.code, `auto-approve refused: ${v.detail}`, v.clause);
     }
     const doc: ClaimedPayout = {
       caseId: args.caseId,
