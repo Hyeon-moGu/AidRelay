@@ -22,6 +22,9 @@ function randomWord(r: () => number, alphabet: string): string {
   return Array.from({ length: n }, () => alphabet[Math.floor(r() * alphabet.length)]).join("");
 }
 
+/** Far above the scheduling pauses of a parallel test run, far below what catastrophic backtracking costs. */
+const SLOW_MS = 2_000;
+
 describe("scrubIdentity fuzz", () => {
   it("never throws and stays fast on random names and addresses full of regex metacharacters", () => {
     const r = rng(42);
@@ -36,8 +39,9 @@ describe("scrubIdentity fuzz", () => {
       worst = Math.max(worst, performance.now() - t0);
       expect(typeof out).toBe("string");
     }
-    // Each call compiles fresh Unicode regexes (first compile is slow); 250 ms would still mean a pathological pattern.
-    expect(worst).toBeLessThan(250);
+    // A call takes about 8 ms on its own. The suite runs its files in parallel, so one call can sit paused for a few
+    // hundred ms; a pattern that backtracks pathologically takes seconds or never returns, which is what this catches.
+    expect(worst).toBeLessThan(SLOW_MS);
   }, 60_000);
 
   it("stays fast when the address repeats one word many times (backtracking probe)", () => {
@@ -46,7 +50,7 @@ describe("scrubIdentity fuzz", () => {
       const text = `1 ${Array.from({ length: Math.floor(n / 2) }, () => "a").join(" ")} a1 `.repeat(20);
       const t0 = performance.now();
       scrubIdentity(text, { name: "x", address: `1 ${words}` });
-      expect(performance.now() - t0).toBeLessThan(200);
+      expect(performance.now() - t0).toBeLessThan(SLOW_MS);
     }
   });
 
