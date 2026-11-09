@@ -3,8 +3,10 @@ import type { CaseStatus } from "@/lib/agent/schema";
 
 export type Lang = "en" | "es";
 
-export function normalizeLang(lang: string | undefined | null): Lang {
-  return (lang ?? "").toLowerCase().startsWith("es") ? "es" : "en";
+/** "es…" is Spanish, anything else English. A repeated query parameter (?lang=es&lang=en) arrives as an array. */
+export function normalizeLang(lang: string | readonly string[] | undefined | null): Lang {
+  const value = typeof lang === "string" ? lang : Array.isArray(lang) && typeof lang[0] === "string" ? lang[0] : "";
+  return value.toLowerCase().startsWith("es") ? "es" : "en";
 }
 
 export interface Strings {
@@ -150,7 +152,7 @@ const en: Strings = {
     reviewTitle: "Check your answers",
     consent: "By submitting, you confirm that everything here is true. Your photos and contact details stay private, and only an anonymous one-line summary appears on the public ledger.",
     consentDemo:
-      "This is a demo. What you wrote and your photos can be seen in the fund’s open staff console. Your name, email, phone and address stay hidden there, and only an anonymous one-line summary appears on the public ledger.",
+      "This is a demo. What you wrote and your photos can be seen in the fund’s open staff console. Your name, email, phone, address and any document you add stay hidden there, and only an anonymous one-line summary appears on the public ledger.",
     demoNotice:
       "Demo site: please use a made-up name and story, and no photos of real people. What you write and the photos you add can be seen in the fund’s open staff console. Your name, email, phone and address stay hidden.",
     demoTips:
@@ -269,7 +271,7 @@ const es: Strings = {
     reviewTitle: "Revise sus respuestas",
     consent: "Al enviar, confirma que todo lo que escribió es verdad. Sus fotos y datos de contacto se mantienen privados, y en el registro público solo aparece un resumen anónimo de una línea.",
     consentDemo:
-      "Esto es una demostración. Lo que escribió y sus fotos se pueden ver en la consola abierta del personal del fondo. Su nombre, correo, teléfono y dirección se mantienen ocultos allí, y en el registro público solo aparece un resumen anónimo de una línea.",
+      "Esto es una demostración. Lo que escribió y sus fotos se pueden ver en la consola abierta del personal del fondo. Su nombre, correo, teléfono, dirección y cualquier documento que agregue se mantienen ocultos allí, y en el registro público solo aparece un resumen anónimo de una línea.",
     demoNotice:
       "Sitio de demostración: use un nombre y una historia inventados, y no envíe fotos de personas reales. Lo que escriba y las fotos que agregue se pueden ver en la consola abierta del personal del fondo. Su nombre, correo, teléfono y dirección se mantienen ocultos.",
     demoTips:

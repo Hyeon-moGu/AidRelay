@@ -162,7 +162,7 @@ export function ApplyForm({
   );
 
   return (
-    <div className="mx-auto w-full max-w-xl px-4 pb-[calc(env(safe-area-inset-bottom)+2rem)] sm:px-6">
+    <div lang={lang} className="mx-auto w-full max-w-xl px-4 pb-[calc(env(safe-area-inset-bottom)+2rem)] sm:px-6">
       <div className="flex h-14 items-center justify-between pt-[env(safe-area-inset-top)]">
         <Brand />
         <div role="group" aria-label={a.language} className="flex rounded-lg bg-muted p-0.5 text-[13px]">
