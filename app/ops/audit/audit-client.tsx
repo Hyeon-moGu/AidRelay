@@ -9,6 +9,6 @@ const AuditStudio = dynamic(() => import("./audit-studio").then((m) => m.AuditSt
   loading: () => <div aria-busy="true" className="size-full animate-pulse rounded-xl border border-border bg-card" />,
 });
 
-export function AuditClient(props: { ledger: LedgerStudioData; licenseKey: string; policyFacts: string }) {
+export function AuditClient(props: { ledger: LedgerStudioData; licenseKey: string; policyFacts: string; canAsk: boolean }) {
   return <AuditStudio {...props} />;
 }

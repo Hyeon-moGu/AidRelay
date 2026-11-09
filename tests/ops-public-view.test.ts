@@ -31,12 +31,14 @@ vi.mock("@/lib/storage/gcs", async (importOriginal) => {
   return { ...actual, downloadObject: vi.fn(async () => Buffer.from("jpeg bytes")) };
 });
 
+import { POST as postAsk } from "@/app/api/ops/ask/route";
 import { GET as getCaseDetail } from "@/app/api/ops/cases/[id]/route";
 import { GET as getCases } from "@/app/api/ops/cases/route";
 import { POST as postDecide } from "@/app/api/ops/decide/route";
 import { POST as postPayoutRetry } from "@/app/api/ops/payout-retry/route";
 import { GET as getPhoto } from "@/app/api/ops/photo/route";
 import { GET as getRuns } from "@/app/api/ops/runs/route";
+import { SIGN_IN_TO_ASK, claudeAdapter } from "@/app/ops/audit/claude-adapter";
 import { enqueueAgentRun } from "@/lib/agent/trigger";
 import { createCase } from "@/lib/db/repos/cases";
 import { getFund } from "@/lib/db/repos/fund";
@@ -133,6 +135,9 @@ describe("who may look and who may act", () => {
       expect(decide.status).toBe(401);
       const retry = await postPayoutRetry(post("http://localhost/api/ops/payout-retry", { caseId: "C-OPEN" }));
       expect(retry.status).toBe(401);
+      // Asking the ledger is a paid model call: the route refuses before it reads the question.
+      const ask = await postAsk(post("http://localhost/api/ops/ask", { input: [{ type: "message" }], responseFormat: { type: "text" } }));
+      expect(ask.status).toBe(401);
     }
     const stored = db.read("cases", "C-OPEN") as Record<string, unknown>;
     expect(stored.status).toBe("needs_review");
@@ -146,6 +151,30 @@ describe("who may look and who may act", () => {
       const res = await getPhoto(new Request(`http://localhost/api/ops/photo?path=${encodeURIComponent(path)}`));
       expect(res.status, path).toBe(400);
     }
+  });
+});
+
+describe("asking the ledger as a visitor", () => {
+  it("answers in the browser with the reason and sends nothing to the server", async () => {
+    const fetchSpy = vi.spyOn(globalThis, "fetch");
+    const turn = claudeAdapter("/api/ops/ask", { canAsk: false }).executeTurn({ input: [] } as never);
+    const response = await turn.complete;
+    expect(response.status).toBe("completed");
+    expect(response.output).toMatchObject([{ type: "message", role: "assistant", content: [{ type: "text", text: SIGN_IN_TO_ASK }] }]);
+    const events: Array<{ type: string }> = [];
+    for await (const event of turn.stream) events.push(event);
+    expect(events.map((e) => e.type)).toEqual(["TEXT_MESSAGE_START", "TEXT_MESSAGE_CONTENT", "TEXT_MESSAGE_END"]);
+    expect(fetchSpy).not.toHaveBeenCalled();
+    fetchSpy.mockRestore();
+  });
+
+  it("a signed-in operator's question goes to the model endpoint", async () => {
+    const fetchSpy = vi.spyOn(globalThis, "fetch").mockResolvedValue(new Response(JSON.stringify({ ok: false, error: "sign in first" }), { status: 401 }));
+    const response = await claudeAdapter("/api/ops/ask").executeTurn({ input: [] } as never).complete;
+    expect(fetchSpy).toHaveBeenCalledTimes(1);
+    expect(fetchSpy.mock.calls[0][0]).toBe("/api/ops/ask");
+    expect(response.error?.message).toContain("staff session has ended");
+    fetchSpy.mockRestore();
   });
 });
 

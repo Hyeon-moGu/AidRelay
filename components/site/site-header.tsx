@@ -31,11 +31,12 @@ const linkClass = "rounded-md px-2 py-1.5 font-medium whitespace-nowrap text-mut
 export function SiteHeader({ staff }: { staff?: "viewer" | "operator" }) {
   const path = usePathname();
   const router = useRouter();
+  const onAudit = path.startsWith("/ops/audit");
 
   async function signOut() {
     await fetch("/api/ops/login", { method: "DELETE" });
-    // Back to the console: the server shows it view-only while the demo is open, or sends them to the sign-in.
-    router.replace("/ops");
+    // Stay where they are: the server shows the page view-only while the demo is open, or sends them to the sign-in.
+    router.replace(onAudit ? "/ops/audit" : "/ops");
     router.refresh();
   }
 
@@ -45,7 +46,8 @@ export function SiteHeader({ staff }: { staff?: "viewer" | "operator" }) {
         <Brand />
         <nav aria-label="Main" className="flex items-center gap-1 text-sm">
           {NAV.map((n) => {
-            const active = path === n.href || path.startsWith(`${n.href}/`);
+            // Ask the ledger lives under /ops but has its own link, so it does not light up "Staff console".
+            const active = n.href === "/ops" ? path === "/ops" || (path.startsWith("/ops/") && !onAudit) : path === n.href || path.startsWith(`${n.href}/`);
             const from = staff ? n.staffFrom : n.from;
             return (
               <Link key={n.href} href={n.href} aria-current={active ? "page" : undefined} className={cn(tapArea, linkClass, active && "text-foreground", from && SHOW_FROM[from])}>
@@ -55,11 +57,7 @@ export function SiteHeader({ staff }: { staff?: "viewer" | "operator" }) {
           })}
           {staff && (
             <>
-              <Link
-                href="/ops/audit"
-                title={staff === "operator" ? undefined : "Ask the ledger needs the staff sign-in"}
-                className={cn(tapArea, linkClass, "inline-flex items-center gap-1.5")}
-              >
+              <Link href="/ops/audit" aria-current={onAudit ? "page" : undefined} className={cn(tapArea, linkClass, "inline-flex items-center gap-1.5", onAudit && "text-foreground")}>
                 <BotMessageSquare aria-hidden="true" className="size-4 text-primary" />
                 Ask the ledger
               </Link>

@@ -75,9 +75,15 @@ interface QuestionStats {
 const usd = new Intl.NumberFormat("en-US", { style: "currency", currency: "USD", minimumFractionDigits: 3, maximumFractionDigits: 3 });
 const count = new Intl.NumberFormat("en-US");
 
-function UsageLine({ stats }: { stats: QuestionStats | null }) {
+function UsageLine({ stats, canAsk }: { stats: QuestionStats | null; canAsk: boolean }) {
   if (!stats) {
-    return <span>Each answer lists the steps it took. What the latest question cost appears here.</span>;
+    return (
+      <span>
+        {canAsk
+          ? "Each answer lists the steps it took. What the latest question cost appears here."
+          : "For signed-in staff, each answer lists the steps it took, and what the latest question cost appears here."}
+      </span>
+    );
   }
   const fresh = Math.max(0, stats.inputTokens - stats.cachedTokens - stats.cacheWriteTokens);
   const cost = fresh * PRICE.input + stats.cachedTokens * PRICE.cacheRead + stats.cacheWriteTokens * PRICE.cacheWrite + stats.outputTokens * PRICE.output;
@@ -93,7 +99,18 @@ function UsageLine({ stats }: { stats: QuestionStats | null }) {
 
 let licensed = false;
 
-export function AuditStudio({ ledger, licenseKey, policyFacts }: { ledger: LedgerStudioData; licenseKey: string; policyFacts: string }) {
+export function AuditStudio({
+  ledger,
+  licenseKey,
+  policyFacts,
+  canAsk,
+}: {
+  ledger: LedgerStudioData;
+  licenseKey: string;
+  policyFacts: string;
+  /** False for a visitor of the open demo: they see the auditor and the report, and a question is answered with "sign in". */
+  canAsk: boolean;
+}) {
   if (licenseKey && !licensed) {
     AgStudioLicenseManager.setLicenseKey(licenseKey);
     licensed = true;
@@ -103,7 +120,7 @@ export function AuditStudio({ ledger, licenseKey, policyFacts }: { ledger: Ledge
   const [stats, setStats] = useState<QuestionStats | null>(null);
 
   const ai = useMemo<AgAiHarnessSetup>(() => {
-    const adapter = claudeAdapter("/api/ops/ask");
+    const adapter = claudeAdapter("/api/ops/ask", { canAsk });
     // Totals for the question being answered: a top-level run starts a new question, delegated runs add to it.
     let current: QuestionStats | null = null;
     const observer = {
@@ -150,12 +167,13 @@ export function AuditStudio({ ledger, licenseKey, policyFacts }: { ledger: Ledge
         promptStarters: PROMPT_STARTERS,
         observers: [observer],
       }));
-  }, [policyFacts]);
+  }, [policyFacts, canAsk]);
 
   return (
     <div className="flex size-full flex-col">
       <p className="shrink-0 border-b border-border px-4 py-1.5 text-xs text-muted-foreground sm:px-6">
-        <UsageLine stats={stats} />
+        {/* A visitor's question never reaches the model, so there is no cost to show. */}
+        <UsageLine stats={canAsk ? stats : null} canAsk={canAsk} />
       </p>
       {/* The same chrome as /ledger: card padding, column rules (globals.css .ledger-report), row height, wording. */}
       <div className="ledger-report min-h-0 flex-1">
@@ -170,7 +188,7 @@ export function AuditStudio({ ledger, licenseKey, policyFacts }: { ledger: Ledge
           widgets={ledgerWidgets}
           layout={{ rowHeight: ROW_HEIGHT }}
           responsiveLayoutBreakpoints={[PHONE, TABLET]}
-          localeText={{ ...LOCALE, panelTitleAi: "Ledger auditor", aiMessageInputPlaceholder: "Ask where the money went..." }}
+          localeText={{ ...LOCALE, panelTitleAi: "Ledger auditor", aiMessageInputPlaceholder: canAsk ? "Ask where the money went..." : "Sign in to ask where the money went..." }}
           panels={{ edit: { left: ["ai"], right: [] } }}
         />
       </div>
