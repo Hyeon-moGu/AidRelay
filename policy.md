@@ -2,7 +2,7 @@
 
 This document is written by the fund's humans and read by the Case Officer agent on every decision.
 The agent cites clause IDs (P-1 … P-10) in its reasoning and must never act outside §5.
-Edit this file to change the agent's behavior; no code change needed.
+Editing the wording changes how the agent judges a case. The amounts, the declared area, the payment order and the limits in §5 are also set in code, which is what holds the agent to them: to change one of those, change it in both places (a test compares the numbers here with the code).
 
 ## 1. Scope
 - **P-1 Event.** Assistance is for households affected by the *Cedar County Flood* (fictional demo event), declared on 2026-11-01.
@@ -26,7 +26,7 @@ Edit this file to change the agent's behavior; no code change needed.
 
 ## 4. Allocation when funds are short
 - **P-8 Rule.** Pay by tier descending (4 → 1), then first-come within a tier. Cases that cannot be funded are `parked` and re-evaluated automatically on every new donation.
-- Alternatives a human may switch to by editing this line: `first-come` · `lottery-within-tier`.
+- Alternatives a fund could choose instead: `first-come` · `lottery-within-tier`. The order is computed in code, so switching takes a code change as well as this line.
 
 ## 5. Agent authority (enforced in code)
 - **P-9 Auto-approve.** The agent may approve and pay without a human when ALL are true:
