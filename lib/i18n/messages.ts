@@ -43,6 +43,9 @@ export interface Strings {
     submitting: string;
     optional: string;
     consent: string;
+    /** Shown instead of `consent`, with `demoNotice` on the first step, while the demo operator console is open to look at. */
+    consentDemo: string;
+    demoNotice: string;
     stepOf: string;
     language: string;
     addPhotos: string;
@@ -142,6 +145,10 @@ const en: Strings = {
     remove: "Remove",
     reviewTitle: "Check your answers",
     consent: "By submitting, you confirm that everything here is true. Your photos and contact details stay private, and only an anonymous one-line summary appears on the public ledger.",
+    consentDemo:
+      "This is a demo. What you wrote and your photos can be seen in the fund’s open staff console. Your name, email, phone and address stay hidden there, and only an anonymous one-line summary appears on the public ledger.",
+    demoNotice:
+      "Demo site: please use a made-up name and story, and no photos of real people. What you write and the photos you add can be seen in the fund’s open staff console. Your name, email, phone and address stay hidden.",
     errors: {
       required: "This field is required.",
       household: "Enter how many people live in your home.",
@@ -253,6 +260,10 @@ const es: Strings = {
     remove: "Quitar",
     reviewTitle: "Revise sus respuestas",
     consent: "Al enviar, confirma que todo lo que escribió es verdad. Sus fotos y datos de contacto se mantienen privados, y en el registro público solo aparece un resumen anónimo de una línea.",
+    consentDemo:
+      "Esto es una demostración. Lo que escribió y sus fotos se pueden ver en la consola abierta del personal del fondo. Su nombre, correo, teléfono y dirección se mantienen ocultos allí, y en el registro público solo aparece un resumen anónimo de una línea.",
+    demoNotice:
+      "Sitio de demostración: use un nombre y una historia inventados, y no envíe fotos de personas reales. Lo que escriba y las fotos que agregue se pueden ver en la consola abierta del personal del fondo. Su nombre, correo, teléfono y dirección se mantienen ocultos.",
     errors: {
       required: "Este campo es obligatorio.",
       household: "Indique cuántas personas viven en su hogar.",

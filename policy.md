@@ -50,9 +50,11 @@ Editing the wording changes how the agent judges a case. The amounts, the declar
 
 ## 7. Privacy
 - The public ledger shows: zip prefix (3 digits), tier, amount, PayPal batch ID, a one-line AI summary with no names, addresses, or contact details, and whether a human reviewed the case.
-- Photos and contact details are never public.
+- Contact details (name, email, phone, street address) are never public.
+- Photos and the applicant's own words are for the fund's volunteers. In this demo the staff console is open to look at, so anyone can see both there, with contact details hidden; nothing can be changed without the staff sign-in. A real fund keeps the whole console behind the sign-in.
 
 ## 8. Change log
 - v1, initial demo policy.
 - v1 (2026-11-07), P-9 auto-approve tier minimum lowered from 2 to 1: the smallest grants are the safest to automate, and the amount cap already limits exposure.
 - v1 (2026-11-07, hardening), P-7 ceiling for human-set amounts; P-9 conditions 8–10 (evidence on file, second evaluation, automation limits); P-10 automation limits; the agent never overrides a human decision.
+- v1 (2026-11-09), §7: in the demo the staff console is open to look at (photos and narratives visible, contact details hidden, every action behind the sign-in).

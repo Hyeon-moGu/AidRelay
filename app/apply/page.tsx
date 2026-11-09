@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { POLICY } from "@/lib/agent/policy";
 import { demoPrefill } from "@/lib/demo-prefill";
+import { getEnv } from "@/lib/env";
 import { MESSAGES, normalizeLang } from "@/lib/i18n/messages";
 import { ApplyForm } from "./apply-form";
 
@@ -18,7 +19,8 @@ export default async function ApplyPage({ searchParams }: { searchParams: Search
   const prefill = demoPrefill(demo);
   return (
     <div className="min-h-dvh">
-      <ApplyForm initialLang={normalizeLang(lang ?? prefill?.lang)} prefill={prefill} largeHouseholdFrom={POLICY.household.beyond} />
+      {/* While the demo console is open to look at, the form says so before anyone writes or uploads anything. */}
+      <ApplyForm initialLang={normalizeLang(lang ?? prefill?.lang)} prefill={prefill} largeHouseholdFrom={POLICY.household.beyond} openConsole={getEnv().OPS_PUBLIC_VIEW} />
     </div>
   );
 }

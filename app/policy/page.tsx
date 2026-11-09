@@ -100,8 +100,10 @@ export default async function PolicyPage() {
                 reach.
               </Rule>
               <Rule icon={EyeOff} title="What stays private">
-                The public ledger shows the first three digits of a zip code, the level of need, the amount and a one-line summary. Names, addresses,
-                contact details and photos are never published.
+                The public ledger shows the first three digits of a zip code, the level of need, the amount and a one-line summary.{" "}
+                {getEnv().OPS_PUBLIC_VIEW
+                  ? "Names, addresses and contact details are never published. In this demo the staff console is open to look at, so photos and applicants’ words can be seen there. A real fund keeps them behind the sign-in."
+                  : "Names, addresses, contact details and photos are never published."}
               </Rule>
             </ul>
           </section>

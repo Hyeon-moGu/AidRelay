@@ -32,11 +32,12 @@ Everything on it runs for real on the PayPal sandbox and Claude.
 1. [`/ledger`](https://aidrelay-545799830947.us-central1.run.app/ledger): the live public ledger, an AG Studio report with every grant and its PayPal payout id. Click any bar, slice or payout to filter the whole report.
 2. [`/policy`](https://aidrelay-545799830947.us-central1.run.app/policy): the rules the AI case officer follows.
 3. [`/apply`](https://aidrelay-545799830947.us-central1.run.app/apply): apply with a zip code that starts with 285 (for example 28501), a photo of water damage and any email. Within about a minute your status link shows the agent's decision: paid, waiting for funds, a follow-up question, or a volunteer's review. An email without a sandbox account still works; PayPal holds the payout and the ledger shows it under *On its way*.
+4. [`/ops`](https://aidrelay-545799830947.us-central1.run.app/ops): the staff console volunteers use to supervise the agent, open to look at in this demo. The review queue grouped by level of need, each case's photos and the agent's reasons, and the live activity feed. Applicants' contact details are hidden and nothing can be changed without signing in.
 
 **With an account:**
 
 - **Donate** on [`/donate`](https://aidrelay-545799830947.us-central1.run.app/donate) as the sandbox donor below. The ledger shows it within seconds, and a family waiting for funds is paid right away.
-- **Supervise the agent** on `/ops`, the operator console: the review queue grouped by level of need, the agent's reasons, bulk approve, the live activity feed, and *Ask the ledger*, an auditor built on AG Studio's Agent Framework. The password is in the Devpost testing instructions.
+- **Act as a volunteer** on `/ops`: sign in to approve (one case or a whole selection), reject, ask the applicant a question, send a payout again, and open *Ask the ledger*, an auditor built on AG Studio's Agent Framework. The password is in the Devpost testing instructions.
 - **See money arrive** by logging in as the C-001 recipient on [sandbox.paypal.com](https://www.sandbox.paypal.com).
 
 **Sandbox test accounts:**
@@ -107,6 +108,7 @@ The limits live in [`policy.md`](policy.md), written by the fund's people and pu
 | The applicant's story is untrusted data: delimited in the prompt and scanned for instructions, and a hit goes to a volunteer. | `lib/agent/evaluate.ts`, `lib/agent/prompts.ts` | `evaluate.test.ts` |
 | The ledger carries no contact details. Emails and phone numbers are scrubbed from everything the agent writes, and the applicant's own name and street address from the one line that is published. | `lib/ledger/anonymize.ts` | `anonymize.test.ts` |
 | Every tool call is shown live in the `/ops` activity feed, and every change to a case or the fund is written to the audit log with the policy clause it relied on. | `lib/agent/tools.ts`, `lib/db/repos/audit.ts` | `officer.test.ts` |
+| The staff console is open to look at in the demo, never to act: every action needs a signed-in volunteer, and a visitor's copy of a case has no contact details, no private status link and no payout recipient. | `lib/ops/auth.ts`, `lib/ops/public-view.ts` | `ops-public-view.test.ts` |
 
 ## PayPal APIs and AI models used
 
@@ -216,6 +218,7 @@ Then donate on `/donate` as your sandbox donor and run `pnpm agent:sweep` to let
 - **PayPal's fees are not on the ledger yet.** *Raised* is what donors gave; the fees PayPal charges the fund (for example on each payout) are not subtracted, so the fund's real PayPal balance is lower than *Available*.
 - **A refunded or disputed donation** is recorded but not taken out of *Raised*.
 - **A payout that fails after PayPal accepted it** (failed, returned, or unclaimed for 30 days) gives its money back to the fund and returns to a volunteer, but it cannot be issued a second time from the console yet.
+- **The staff console is open to look at in this demo** (`OPS_PUBLIC_VIEW=true`), so anyone can see the applications and their photos there, with contact details hidden. That is for judging, and `/apply` says so before anyone writes anything. A real fund sets it to `false`, which puts the whole console behind the sign-in.
 
 Out of scope on purpose: KYC and identity verification, live (non-sandbox) money, bank verification, multi-tenant auth, a mobile app, SMS intake, email or SMS notifications (applicants read messages on their status page), in-kind logistics.
 

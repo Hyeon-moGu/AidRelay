@@ -20,7 +20,18 @@ const EMPTY: Fields = { name: "", email: "", phone: "", address: "", zip: "", ho
 
 const mb = (bytes: number) => `${(bytes / 1024 / 1024).toFixed(1)} MB`;
 
-export function ApplyForm({ initialLang, prefill, largeHouseholdFrom }: { initialLang: Lang; prefill?: Prefill; largeHouseholdFrom: number }) {
+export function ApplyForm({
+  initialLang,
+  prefill,
+  largeHouseholdFrom,
+  openConsole = false,
+}: {
+  initialLang: Lang;
+  prefill?: Prefill;
+  largeHouseholdFrom: number;
+  /** The demo operator console is open to look at: say what a visitor there can see. */
+  openConsole?: boolean;
+}) {
   const router = useRouter();
   const [lang, setLang] = useState<Lang>(initialLang);
   const [step, setStepRaw] = useState(0);
@@ -175,6 +186,7 @@ export function ApplyForm({ initialLang, prefill, largeHouseholdFrom }: { initia
           <p className="text-sm font-medium text-primary tabular-nums">{a.stepOf.replace("{n}", String(step + 1)).replace("{total}", "3")}</p>
           <h1 className="text-[1.75rem] leading-tight font-semibold tracking-[-0.02em]">{a.title}</h1>
           {step === 0 && <p className="leading-relaxed text-muted-foreground">{a.intro}</p>}
+          {step === 0 && openConsole && <p className="rounded-lg bg-warning-soft p-3 text-[13px] leading-relaxed text-warning">{a.demoNotice}</p>}
           <ol className="grid grid-cols-3 gap-2 pt-2">
             {a.steps.map((s, i) => (
               <li key={s} aria-current={i === step ? "step" : undefined} className="space-y-1.5">
@@ -311,7 +323,7 @@ export function ApplyForm({ initialLang, prefill, largeHouseholdFrom }: { initia
                       </div>
                     </dl>
                   </div>
-                  <p className="text-[13px] leading-relaxed text-muted-foreground">{a.consent}</p>
+                  <p className="text-[13px] leading-relaxed text-muted-foreground">{openConsole ? a.consentDemo : a.consent}</p>
                   {errors.form && (
                     <p role="alert" className="rounded-lg bg-danger-soft p-3 text-sm text-danger">
                       {errors.form}
