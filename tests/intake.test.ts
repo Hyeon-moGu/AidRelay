@@ -42,9 +42,9 @@ const application = (lang: "en" | "es" = "en") =>
     narrative: "Water came into the kitchen and the laundry room.",
   });
 
-async function picture(format: "jpeg" | "avif"): Promise<Buffer> {
+async function picture(format: "jpeg" | "webp" | "avif"): Promise<Buffer> {
   const img = sharp({ create: { width: 48, height: 32, channels: 3, background: { r: 20, g: 90, b: 130 } } });
-  return format === "jpeg" ? img.jpeg().toBuffer() : img.avif().toBuffer();
+  return format === "jpeg" ? img.jpeg().toBuffer() : format === "webp" ? img.webp().toBuffer() : img.avif().toBuffer();
 }
 
 const file = (name: string, type: string, bytes: Buffer): UploadedFile => ({ name, type, bytes });
@@ -66,8 +66,8 @@ beforeEach(() => {
 });
 
 describe("submitApplication files", () => {
-  it("stores JPEG and AVIF photos as JPEG and wakes the agent", async () => {
-    const { id } = await submitApplication(application(), [file("a.jpg", "image/jpeg", await picture("jpeg")), file("b.avif", "image/avif", await picture("avif"))], []);
+  it("stores JPEG and WebP photos as JPEG and wakes the agent", async () => {
+    const { id } = await submitApplication(application(), [file("a.jpg", "image/jpeg", await picture("jpeg")), file("b.webp", "image/webp", await picture("webp"))], []);
     const c = (await getCase(id)) as CaseDoc;
     expect(c.photos).toEqual([`cases/${id}/photo-1.jpg`, `cases/${id}/photo-2.jpg`]);
     expect(c.photoHashes).toHaveLength(2);
@@ -96,6 +96,26 @@ describe("submitApplication files", () => {
     expect(err.message).toContain("broken.jpg");
     expect(uploadObject).not.toHaveBeenCalled();
     expect(db.all("cases")).toHaveLength(0);
+  });
+
+  it("refuses a file whose bytes are another format than the photo type it declares (SVG or AVIF sent as image/png)", async () => {
+    const svg = file("map.png", "image/png", Buffer.from('<svg xmlns="http://www.w3.org/2000/svg" width="10" height="10"><rect width="10" height="10"/></svg>'));
+    const avif = file("photo.png", "image/png", await picture("avif"));
+    for (const disguised of [svg, avif]) {
+      const err = await refusal(submitApplication(application(), [disguised], []));
+      expect(err.status).toBe(400);
+      expect(err.message).toContain(disguised.name);
+    }
+    expect(uploadObject).not.toHaveBeenCalled();
+    expect(db.all("cases")).toHaveLength(0);
+  });
+
+  it("refuses an image over the pixel limit before decoding it, with a 400", async () => {
+    // 8000 x 8000 = 64 megapixels in a small PNG: decoding it would take about 200 MB.
+    const huge = await sharp({ create: { width: 8000, height: 8000, channels: 3, background: { r: 255, g: 255, b: 255 } } }).png().toBuffer();
+    const err = await refusal(submitApplication(application(), [file("huge.png", "image/png", huge)], []));
+    expect(err.status).toBe(400);
+    expect(uploadObject).not.toHaveBeenCalled();
   });
 });
 

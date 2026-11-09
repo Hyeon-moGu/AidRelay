@@ -36,14 +36,20 @@ export async function signedReadUrl(objectPath: string, minutes = 15): Promise<s
   return url;
 }
 
+/**
+ * Larger images are refused before they are decoded: 50 megapixels covers a phone camera's full-resolution
+ * mode, while a small, highly compressed file claiming 16000 x 16000 pixels would take hundreds of MB to open.
+ */
+export const MAX_INPUT_PIXELS = 50_000_000;
+
 /** What is stored: JPEG, EXIF-rotated, at most 2048 px on the long side (originals are not kept). */
 export async function prepareImageForStorage(input: Buffer): Promise<Buffer> {
-  return sharp(input).rotate().resize({ width: 2048, height: 2048, fit: "inside", withoutEnlargement: true }).jpeg({ quality: 85 }).toBuffer();
+  return sharp(input, { limitInputPixels: MAX_INPUT_PIXELS }).rotate().resize({ width: 2048, height: 2048, fit: "inside", withoutEnlargement: true }).jpeg({ quality: 85 }).toBuffer();
 }
 
 /** ≤ 1024 px on the long side, JPEG, EXIF-rotated: what the model sees. */
 export async function prepareImageForModel(input: Buffer): Promise<{ data: Buffer; mediaType: "image/jpeg" }> {
-  const data = await sharp(input)
+  const data = await sharp(input, { limitInputPixels: MAX_INPUT_PIXELS })
     .rotate()
     .resize({ width: 1024, height: 1024, fit: "inside", withoutEnlargement: true })
     .jpeg({ quality: 82 })

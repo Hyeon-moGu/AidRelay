@@ -9,7 +9,7 @@ import type { CaseDoc } from "@/lib/db/types";
 import { HttpError } from "@/lib/http";
 import { MESSAGES, normalizeLang, type Lang } from "@/lib/i18n/messages";
 import { caseDocPath, casePhotoPath, prepareImageForStorage, uploadObject } from "@/lib/storage/gcs";
-import { fileTypeProblem, MAX_DOCS, MAX_FILE_BYTES, MAX_PHOTOS } from "@/lib/upload-rules";
+import { fileTypeProblem, MAX_DOCS, MAX_FILE_BYTES, MAX_PHOTOS, sniffImageType } from "@/lib/upload-rules";
 
 export { MAX_DOCS, MAX_FILE_BYTES, MAX_PHOTOS };
 
@@ -41,7 +41,7 @@ function checkFiles(files: UploadedFile[], max: number, what: string, lang: Lang
   if (files.length > max) throw new HttpError(400, `at most ${max} ${what}`);
   for (const f of files) {
     if (f.bytes.length > MAX_FILE_BYTES) throw new HttpError(400, `${f.name} is larger than 10 MB`);
-    if (fileTypeProblem(f)) throw unreadable(lang, f.name);
+    if (fileTypeProblem(f) || !sniffImageType(f.bytes)) throw unreadable(lang, f.name);
   }
 }
 

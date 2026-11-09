@@ -6,7 +6,8 @@ const W = 9;
 const H = 8;
 
 export async function imageHash(input: Buffer): Promise<string> {
-  const { data } = await sharp(input)
+  // Hashes the stored copy (at most 2048 px); the limit only keeps an unexpected input from filling memory.
+  const { data } = await sharp(input, { limitInputPixels: 50_000_000 })
     .rotate()
     .grayscale()
     .resize(W, H, { fit: "fill" })
