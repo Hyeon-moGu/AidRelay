@@ -18,6 +18,7 @@ const eslintConfig = [
       "out/**",
       "build/**",
       "temp/**", // local scratch scripts, git-ignored
+      ".claude/**", // assistant config and its worktrees, git-ignored
       "next-env.d.ts",
     ],
   },
