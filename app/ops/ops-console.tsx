@@ -22,7 +22,7 @@ import type { GridRow } from "./case-grid";
 
 const CaseGrid = dynamic(() => import("./case-grid").then((m) => m.CaseGrid), {
   ssr: false,
-  loading: () => <div aria-busy="true" className="h-[600px] animate-pulse rounded-xl border border-border bg-card" />,
+  loading: () => <div aria-busy="true" className="h-[680px] animate-pulse rounded-xl border border-border bg-card" />,
 });
 
 type ApiResult<T> = { ok: true; data: T } | { ok: false; error: string };

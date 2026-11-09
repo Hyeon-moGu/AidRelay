@@ -1,6 +1,8 @@
 "use client";
 
-// The queue: AG Grid Enterprise, grouped by tier, multi-row selection, inline amount edit.
+// The queue: AG Grid Enterprise. Row grouping by tier with group totals, the row group panel (drag Status up
+// to regroup), the columns and filters tool panels, set and number filters, a status bar with a custom panel
+// that totals the selected grants, multi-row selection and inline amount edit.
 import {
   ModuleRegistry,
   type CellValueChangedEvent,
@@ -11,10 +13,12 @@ import {
   type RowClickedEvent,
   type RowSelectionOptions,
   type SelectionChangedEvent,
+  type SideBarDef,
+  type StatusBar,
 } from "ag-grid-community";
 import { AllEnterpriseModule, LicenseManager } from "ag-grid-enterprise";
-import { AgGridReact } from "ag-grid-react";
-import { useCallback, useMemo } from "react";
+import { AgGridReact, type CustomStatusPanelProps } from "ag-grid-react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { Chip, StatusBadge } from "@/components/status-badge";
 import { dollars, duration, local, money } from "@/lib/format";
 import type { OpsRow } from "@/lib/ops/rows";
@@ -60,6 +64,70 @@ function MonoCell(p: ICellRendererParams<GridRow, string | null>) {
 
 const EDITABLE = new Set(["needs_review", "needs_info", "parked", "approved"]);
 
+/**
+ * Status bar panel: how many grants are selected and what approving them would pay, with the amounts as they
+ * stand in the grid (an edited amount counts at once). It is what a volunteer checks before a bulk approval.
+ * Only cases still open for a decision count toward the total; a paid or rejected row in the selection is named apart.
+ */
+function SelectedTotal({ api }: CustomStatusPanelProps<GridRow>) {
+  const [sel, setSel] = useState({ count: 0, dollars: 0, unpriced: 0, closed: 0 });
+  useEffect(() => {
+    const update = () => {
+      const rows = api.getSelectedRows();
+      const open = rows.filter((r) => EDITABLE.has(r.status));
+      setSel({
+        count: rows.length,
+        dollars: open.reduce((sum, r) => sum + (r.amountDollars ?? 0), 0),
+        unpriced: open.filter((r) => r.amountDollars == null).length,
+        closed: rows.length - open.length,
+      });
+    };
+    const events = ["selectionChanged", "cellValueChanged", "modelUpdated"] as const;
+    for (const e of events) api.addEventListener(e, update);
+    update();
+    return () => {
+      if (api.isDestroyed()) return;
+      for (const e of events) api.removeEventListener(e, update);
+    };
+  }, [api]);
+  return (
+    <div className="ag-status-name-value tabular-nums" aria-live="polite">
+      {sel.count === 0 ? (
+        <span>Select grants to approve them together</span>
+      ) : (
+        <>
+          <span>Selected:</span> <span className="ag-status-name-value-value">{sel.count}</span>
+          <span className="ml-3">Total to approve:</span> <span className="ag-status-name-value-value">{dollars(sel.dollars)}</span>
+          {sel.unpriced > 0 && <span className="ml-3">{sel.unpriced} without an amount yet</span>}
+          {sel.closed > 0 && <span className="ml-3">{sel.closed} already paid or closed</span>}
+        </>
+      )}
+    </div>
+  );
+}
+
+const STATUS_BAR: StatusBar = {
+  statusPanels: [
+    { statusPanel: "agTotalAndFilteredRowCountComponent", align: "left" },
+    { statusPanel: SelectedTotal, align: "right" },
+  ],
+};
+
+/** Columns and filters tool panels. No pivot mode: the queue is a list of cases, not a report. */
+const SIDE_BAR: SideBarDef = {
+  toolPanels: [
+    {
+      id: "columns",
+      labelDefault: "Columns",
+      labelKey: "columns",
+      iconKey: "columns",
+      toolPanel: "agColumnsToolPanel",
+      toolPanelParams: { suppressPivotMode: true, suppressPivots: true, suppressValues: true },
+    },
+    { id: "filters", labelDefault: "Filters", labelKey: "filters", iconKey: "filter", toolPanel: "agFiltersToolPanel" },
+  ],
+};
+
 export function CaseGrid({
   rows,
   licenseKey,
@@ -79,14 +147,15 @@ export function CaseGrid({
 
   const columnDefs = useMemo<ColDef<GridRow>[]>(
     () => [
-      { field: "tier", rowGroup: true, hide: true, valueFormatter: (p) => (p.value == null ? "Not yet tiered" : `Tier ${p.value}`) },
+      { field: "tier", rowGroup: true, enableRowGroup: true, hide: true, filter: "agSetColumnFilter", valueFormatter: (p) => (p.value == null ? "Not yet tiered" : `Tier ${p.value}`) },
       { field: "id", headerName: "Case", width: 115, pinned: "left", cellRenderer: MonoCell },
-      { field: "status", width: 150, cellRenderer: StatusCell, filter: "agSetColumnFilter" },
+      { field: "status", width: 150, cellRenderer: StatusCell, filter: "agSetColumnFilter", enableRowGroup: true },
       {
         field: "amountDollars",
         headerName: "Amount",
         width: 115,
         type: "rightAligned",
+        filter: "agNumberColumnFilter",
         editable: (p) => !!p.data && EDITABLE.has(p.data.status),
         cellEditor: "agNumberCellEditor",
         cellEditorParams: { min: 1, max: 1300, precision: 2 },
@@ -109,11 +178,11 @@ export function CaseGrid({
         // Text form for filtering, copy and export; AG Grid 36 also warns (#48) when an array column has none.
         valueFormatter: (p) => (Array.isArray(p.value) ? p.value.join(", ") : ""),
       },
-      { field: "secondEvaluationAgrees", headerName: "2nd eval", width: 95, cellRenderer: SecondEvalCell },
+      { field: "secondEvaluationAgrees", headerName: "2nd eval", width: 95, cellRenderer: SecondEvalCell, enableRowGroup: true },
       { field: "ledgerSummary", headerName: "AI summary", flex: 1, minWidth: 240, tooltipField: "ledgerSummary" },
       { field: "zip", width: 85, cellClass: "tabular-nums" },
       { field: "householdSize", headerName: "HH", width: 68, type: "rightAligned", cellClass: "tabular-nums" },
-      { field: "lang", width: 70 },
+      { field: "lang", width: 70, filter: "agSetColumnFilter", enableRowGroup: true },
       { field: "minutesToCash", headerName: "To cash", width: 100, type: "rightAligned", valueFormatter: (p) => (p.value == null ? "" : duration(p.value)), cellClass: "tabular-nums" },
       { field: "payoutBatchId", headerName: "PayPal batch", width: 160, cellRenderer: MonoCell },
       { field: "createdAt", headerName: "Received", width: 130, valueFormatter: (p) => local(p.value), sort: "desc", cellClass: "tabular-nums" },
@@ -142,7 +211,7 @@ export function CaseGrid({
   );
 
   return (
-    <div className="h-[600px] w-full">
+    <div className="h-[680px] w-full">
       <AgGridReact<GridRow>
         theme={opsGridTheme}
         rowData={rows}
@@ -153,8 +222,12 @@ export function CaseGrid({
         selectionColumnDef={{ pinned: "left", width: 48 }}
         groupDefaultExpanded={1}
         suppressAggFuncInHeader
+        // Grouped by tier to start with; dragging Status (or another column) into the panel regroups the queue.
+        rowGroupPanelShow="always"
+        statusBar={STATUS_BAR}
+        sideBar={SIDE_BAR}
         // Highest tier first, the order the agent pays in (P-8); without a sort, groups follow the first row.
-        autoGroupColumnDef={{ headerName: "Tier", minWidth: 170, pinned: "left", sort: "desc" }}
+        autoGroupColumnDef={{ headerName: "Group", minWidth: 170, pinned: "left", sort: "desc" }}
         onGridReady={onGridReady}
         onSelectionChanged={onSelectionChanged}
         onRowClicked={onRowClicked}
