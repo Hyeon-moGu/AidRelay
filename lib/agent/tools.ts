@@ -119,6 +119,17 @@ async function releaseIfReserved(c: CaseDoc, reason: string): Promise<void> {
   }
 }
 
+const inPayment = (c: Pick<CaseDoc, "status">): boolean => c.status === "paying" || c.status === "paid";
+
+/**
+ * Two runs can work on the same waiting cases at once (a volunteer's approval and a donation, or a sweep).
+ * The payout claim lets exactly one of them pay a case; for the other this is not an error, just nothing
+ * left to do, and the activity feed should say so instead of showing a refusal.
+ */
+function alreadyInPayment(c: CaseDoc) {
+  return { ok: true, caseId: c.id, alreadyHandled: true, status: c.status, payoutBatchId: c.payoutBatchId ?? null, note: "another run is already paying this case; nothing to do" };
+}
+
 export function buildTools(ctx: RunContext): ToolSet {
   return {
     get_policy: tool({
@@ -303,6 +314,7 @@ export function buildTools(ctx: RunContext): ToolSet {
         logged(ctx, "reserve_funds", args, "P-9.6", async () => {
           const c = await getCase(args.caseId);
           if (!c) throw new Error(`case ${args.caseId} not found`);
+          if (inPayment(c)) return alreadyInPayment(c);
           const amount = amountForCase(c);
           if (amount === null) throw new Error("no amount to reserve: evaluate the case first");
           try {
@@ -315,6 +327,9 @@ export function buildTools(ctx: RunContext): ToolSet {
               }
               return { ok: false, parked: true, caseId: c.id, neededCents: err.neededCents, availableCents: err.availableCents, clause: "P-8" };
             }
+            // Another run started paying the case between the read above and the reservation.
+            const latest = await getCase(c.id);
+            if (latest && inPayment(latest)) return alreadyInPayment(latest);
             throw err;
           }
         }),
@@ -328,6 +343,7 @@ export function buildTools(ctx: RunContext): ToolSet {
         logged(ctx, "create_payout", args, "P-9", async () => {
           const c = await getCase(args.caseId);
           if (!c) throw new Error(`case ${args.caseId} not found`);
+          if (inPayment(c)) return alreadyInPayment(c);
           const amount = amountForCase(c);
           if (amount === null) throw new GuardrailError("bad_amount", "no amount on file for this case", "P-7");
           const [fund, existing, recent] = await Promise.all([getFund(), getPayout(c.id), recentAutoPayouts()]);
@@ -358,8 +374,21 @@ export function buildTools(ctx: RunContext): ToolSet {
             throw err;
           }
 
-          if ((c.reservedCents ?? 0) !== amount) {
-            if (c.status !== "approved" && c.status !== "parked") {
+          try {
+            if ((c.reservedCents ?? 0) !== amount) {
+              if (c.status !== "approved" && c.status !== "parked") {
+                await setCaseStatus(c.id, "approved", {
+                  actor: "agent",
+                  action: "case.approved",
+                  policyClause: path === "auto" ? "P-9" : "human decision",
+                  reason: path === "auto" ? "all auto-approve conditions hold" : `approved by ${c.humanDecision?.by}`,
+                });
+              }
+              await reserveFunds(c.id, amount, { actor: "agent", policyClause: "P-9.6", reason: `reserve ${amount} before payout` });
+            }
+            const now = await getCase(c.id);
+            if (now && inPayment(now)) return alreadyInPayment(now);
+            if (now?.status !== "approved") {
               await setCaseStatus(c.id, "approved", {
                 actor: "agent",
                 action: "case.approved",
@@ -367,29 +396,26 @@ export function buildTools(ctx: RunContext): ToolSet {
                 reason: path === "auto" ? "all auto-approve conditions hold" : `approved by ${c.humanDecision?.by}`,
               });
             }
-            await reserveFunds(c.id, amount, { actor: "agent", policyClause: "P-9.6", reason: `reserve ${amount} before payout` });
-          }
-          const now = await getCase(c.id);
-          if (now?.status !== "approved") {
-            await setCaseStatus(c.id, "approved", {
+            const payout = await createPayoutForCase({
+              caseId: c.id,
+              amountCents: amount,
+              currency: fund.currency,
+              recipientEmail: c.contact.email,
+              note: payoutNote(fund.name, c.id),
               actor: "agent",
-              action: "case.approved",
               policyClause: path === "auto" ? "P-9" : "human decision",
-              reason: path === "auto" ? "all auto-approve conditions hold" : `approved by ${c.humanDecision?.by}`,
+              reason: path === "auto" ? "auto-approved payout" : "human-approved payout",
+              autoApproved: path === "auto",
             });
+            return { ok: true, caseId: c.id, path, amountCents: amount, payoutBatchId: payout.payoutBatchId ?? null, batchStatus: payout.batchStatus ?? payout.status };
+          } catch (err) {
+            // Lost the claim to another run that is paying the same case right now: nothing was refused and
+            // nothing is left to do. A payout PayPal did not accept leaves the case `approved`, so it still
+            // surfaces as the error it is.
+            const latest = await getCase(c.id);
+            if (latest && inPayment(latest)) return alreadyInPayment(latest);
+            throw err;
           }
-          const payout = await createPayoutForCase({
-            caseId: c.id,
-            amountCents: amount,
-            currency: fund.currency,
-            recipientEmail: c.contact.email,
-            note: payoutNote(fund.name, c.id),
-            actor: "agent",
-            policyClause: path === "auto" ? "P-9" : "human decision",
-            reason: path === "auto" ? "auto-approved payout" : "human-approved payout",
-            autoApproved: path === "auto",
-          });
-          return { ok: true, caseId: c.id, path, amountCents: amount, payoutBatchId: payout.payoutBatchId ?? null, batchStatus: payout.batchStatus ?? payout.status };
         }),
     }),
 
