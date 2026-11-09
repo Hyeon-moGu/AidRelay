@@ -91,7 +91,7 @@ async function runSession(ctx: RunContext, userPrompt: string, maxSteps: number)
     tools: buildTools(ctx),
     stopWhen: stepCountIs(maxSteps),
   });
-  addUsage(ctx.usage, result.totalUsage);
+  addUsage(ctx.usage, result.totalUsage, Math.max(1, result.steps.length));
   return result.text.trim() || `(no summary; ${result.steps.length} step(s))`;
 }
 

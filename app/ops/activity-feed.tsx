@@ -70,8 +70,14 @@ export function ActivityFeed({ runs }: { runs: OpsRun[] }) {
             )}
             {r.cost && (
               <p className="mt-2 text-[11px] text-muted-foreground tabular-nums">
-                {r.cost.modelCalls} model call{r.cost.modelCalls === 1 ? "" : "s"} · {num(r.cost.inputTokens)} in / {num(r.cost.outputTokens)} out
-                {r.cost.cachedInputTokens ? ` · ${num(r.cost.cachedInputTokens)} cached` : ""}
+                {r.cost.modelCalls === 0 ? (
+                  "Settled in code, no model call"
+                ) : (
+                  <>
+                    {r.cost.modelCalls} model call{r.cost.modelCalls === 1 ? "" : "s"} · {num(r.cost.inputTokens)} in / {num(r.cost.outputTokens)} out
+                    {r.cost.cachedInputTokens ? ` · ${num(r.cost.cachedInputTokens)} cached` : ""}
+                  </>
+                )}
               </p>
             )}
           </li>

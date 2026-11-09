@@ -167,8 +167,6 @@ export function CaseGrid({
         },
         aggFunc: "sum",
       },
-      { field: "requestedAmountCents", headerName: "Requested", width: 110, type: "rightAligned", valueFormatter: (p) => money(p.value), cellClass: "tabular-nums" },
-      { field: "confidence", width: 105, type: "rightAligned", valueFormatter: (p) => (p.value == null ? "" : `${Math.round(p.value * 100)}%`), cellClass: "tabular-nums" },
       {
         field: "redFlags",
         headerName: "Flags",
@@ -178,14 +176,17 @@ export function CaseGrid({
         // Text form for filtering, copy and export; AG Grid 36 also warns (#48) when an array column has none.
         valueFormatter: (p) => (Array.isArray(p.value) ? p.value.join(", ") : ""),
       },
+      { field: "requestedAmountCents", headerName: "Requested", width: 110, type: "rightAligned", valueFormatter: (p) => money(p.value), cellClass: "tabular-nums" },
+      { field: "confidence", width: 105, type: "rightAligned", valueFormatter: (p) => (p.value == null ? "" : `${Math.round(p.value * 100)}%`), cellClass: "tabular-nums" },
       { field: "secondEvaluationAgrees", headerName: "2nd eval", width: 95, cellRenderer: SecondEvalCell, enableRowGroup: true },
       { field: "ledgerSummary", headerName: "AI summary", flex: 1, minWidth: 240, tooltipField: "ledgerSummary" },
-      { field: "zip", width: 85, cellClass: "tabular-nums" },
-      { field: "householdSize", headerName: "HH", width: 68, type: "rightAligned", cellClass: "tabular-nums" },
-      { field: "lang", width: 70, filter: "agSetColumnFilter", enableRowGroup: true },
+      // Hidden at first so the decision columns fit a laptop screen; each one is a click away in the Columns panel.
+      { field: "zip", width: 85, cellClass: "tabular-nums", hide: true },
+      { field: "householdSize", headerName: "HH", width: 68, type: "rightAligned", cellClass: "tabular-nums", hide: true },
+      { field: "lang", width: 70, filter: "agSetColumnFilter", enableRowGroup: true, hide: true },
       { field: "minutesToCash", headerName: "To cash", width: 100, type: "rightAligned", valueFormatter: (p) => (p.value == null ? "" : duration(p.value)), cellClass: "tabular-nums" },
       { field: "payoutBatchId", headerName: "PayPal batch", width: 160, cellRenderer: MonoCell },
-      { field: "createdAt", headerName: "Received", width: 130, valueFormatter: (p) => local(p.value), sort: "desc", cellClass: "tabular-nums" },
+      { field: "createdAt", headerName: "Received", width: 130, valueFormatter: (p) => local(p.value), sort: "desc", cellClass: "tabular-nums", hide: true },
     ],
     [],
   );
@@ -227,7 +228,7 @@ export function CaseGrid({
         statusBar={STATUS_BAR}
         sideBar={SIDE_BAR}
         // Highest tier first, the order the agent pays in (P-8); without a sort, groups follow the first row.
-        autoGroupColumnDef={{ headerName: "Group", minWidth: 170, pinned: "left", sort: "desc" }}
+        autoGroupColumnDef={{ headerName: "Group", width: 140, minWidth: 120, pinned: "left", sort: "desc" }}
         onGridReady={onGridReady}
         onSelectionChanged={onSelectionChanged}
         onRowClicked={onRowClicked}

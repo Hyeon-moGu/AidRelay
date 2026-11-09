@@ -12,7 +12,18 @@ export type { CaseDetail };
 
 const orDash = (s: string) => s || "–";
 
-function DecisionBlock({ d, title }: { d: Decision; title: string }) {
+/**
+ * Why a case the model assessed is with a volunteer: the agent's latest evaluation or escalation (the audit
+ * trail is newest first). The model's own verdict ("needs info", "eligible") can differ from the status the
+ * code chose, so the panel says which rule decided.
+ */
+function routedBecause(status: string, audit: CaseDetail["audit"]): { clause?: string; reason: string } | undefined {
+  if (status !== "needs_review") return undefined;
+  const last = audit.find((a) => a.actor === "agent" && (a.action === "case.escalated" || a.action === "case.evaluated"));
+  return last ? { clause: last.policyClause, reason: last.reason } : undefined;
+}
+
+function DecisionBlock({ d, title, routed }: { d: Decision; title: string; routed?: { clause?: string; reason: string } }) {
   return (
     <section className="space-y-2.5 rounded-lg border border-border p-3">
       <div className="flex flex-wrap items-center justify-between gap-2">
@@ -23,6 +34,17 @@ function DecisionBlock({ d, title }: { d: Decision; title: string }) {
           <Chip className="tabular-nums">{Math.round(d.confidence * 100)}%</Chip>
         </span>
       </div>
+      {routed && (
+        <p className="line-clamp-4 rounded-md bg-warning-soft px-2.5 py-1.5 text-[13px] leading-snug" title={routed.reason}>
+          <span className="font-medium text-warning">Sent to a volunteer</span>
+          {routed.clause && (
+            <Chip tone="accent" mono className="mx-1">
+              {routed.clause}
+            </Chip>
+          )}
+          <span className="text-muted-foreground">{routed.reason}</span>
+        </p>
+      )}
       <ul className="space-y-1.5 text-[13px] leading-snug">
         {d.reasons.map((r, i) => (
           <li key={i} className="flex gap-2">
@@ -218,8 +240,8 @@ export function CasePanel({
         </div>
       )}
 
-      {c.aiDecision && <DecisionBlock d={c.aiDecision} title="Case Officer decision" />}
-      {c.aiDecisionSecond && <DecisionBlock d={c.aiDecisionSecond} title="Second, independent evaluation" />}
+      {c.aiDecision && <DecisionBlock d={c.aiDecision} title="Case Officer's assessment" routed={routedBecause(c.status, detail.audit)} />}
+      {c.aiDecisionSecond && <DecisionBlock d={c.aiDecisionSecond} title="Second, separate evaluation" />}
 
       <details className="group rounded-lg border border-border">
         <summary className="cursor-pointer list-none px-3 py-2 text-[13px] font-medium text-muted-foreground hover:text-foreground">

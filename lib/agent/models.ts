@@ -43,9 +43,14 @@ export function newUsage(): Usage {
   return { inputTokens: 0, outputTokens: 0, cachedInputTokens: 0, modelCalls: 0 };
 }
 
-export function addUsage(total: Usage, u: { inputTokens?: number; outputTokens?: number; cachedInputTokens?: number } | undefined): void {
+/** Adds one call's tokens. A tool-using session makes one model request per step: pass `calls` = its steps. */
+export function addUsage(
+  total: Usage,
+  u: { inputTokens?: number; outputTokens?: number; cachedInputTokens?: number } | undefined,
+  calls = 1,
+): void {
   total.inputTokens += u?.inputTokens ?? 0;
   total.outputTokens += u?.outputTokens ?? 0;
   total.cachedInputTokens += u?.cachedInputTokens ?? 0;
-  total.modelCalls += 1;
+  total.modelCalls += calls;
 }
