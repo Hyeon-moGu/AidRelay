@@ -4,6 +4,7 @@
 // A visitor of the open demo (`canAsk: false`) may look at the auditor but not ask: their question is answered
 // here with the reason, as an ordinary reply in the chat, and no request is sent.
 import type { AgAiEvent, AgLlmAdapter, AgLlmResponse } from "ag-studio";
+import { cannedTurn } from "@/lib/ops/canned-reply";
 
 /** What a visitor reads when they ask. Every question is a paid model call, so the demo keeps asking for signed-in staff. */
 export const SIGN_IN_TO_ASK =
@@ -11,25 +12,6 @@ export const SIGN_IN_TO_ASK =
 
 function failed(message: string, status: AgLlmResponse["status"] = "failed"): AgLlmResponse {
   return { id: crypto.randomUUID(), createdAt: Date.now(), output: [], status, error: { code: status === "cancelled" ? "cancelled" : "adapter_error", message } };
-}
-
-/** A turn that never reaches the model: `text` as a finished assistant message, in the events and the response Studio expects. */
-function replied(text: string): { events: AgAiEvent[]; response: AgLlmResponse } {
-  const id = crypto.randomUUID();
-  const messageId = `${id}:0`;
-  return {
-    events: [
-      { type: "TEXT_MESSAGE_START", messageId, role: "assistant" },
-      { type: "TEXT_MESSAGE_CONTENT", messageId, delta: text },
-      { type: "TEXT_MESSAGE_END", messageId },
-    ],
-    response: {
-      id,
-      createdAt: Date.now(),
-      status: "completed",
-      output: [{ id: `msg_${id}`, kind: "output", type: "message", role: "assistant", status: "completed", content: [{ type: "text", text, annotations: [] }] }],
-    },
-  };
 }
 
 export function claudeAdapter(endpoint: string, opts: { canAsk?: boolean } = {}): AgLlmAdapter {
@@ -55,7 +37,7 @@ export function claudeAdapter(endpoint: string, opts: { canAsk?: boolean } = {})
 
       void (async () => {
         if (!canAsk) {
-          const notice = replied(SIGN_IN_TO_ASK);
+          const notice = cannedTurn(SIGN_IN_TO_ASK);
           notice.events.forEach(push);
           return finish(notice.response);
         }

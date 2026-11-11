@@ -9,7 +9,9 @@ import { z } from "zod";
 import type { AgLlmRequest } from "ag-studio";
 import { MODELS, auditorModel } from "@/lib/agent/models";
 import { fail, handleRouteError } from "@/lib/http";
+import { REFUSAL, SCOPE_GUARD, freshQuestion, screenQuestion } from "@/lib/ops/ask-guard";
 import { isOperator } from "@/lib/ops/auth";
+import { cannedTurn } from "@/lib/ops/canned-reply";
 import { TurnCollector, toPrompt, toToolChoice, toTools } from "@/lib/ops/llm-bridge";
 
 export const runtime = "nodejs";
@@ -61,7 +63,23 @@ export async function POST(req: Request) {
     if (overLimit()) return fail("too many questions in a short time", 429);
     const request = parsed.data as unknown as AgLlmRequest;
 
-    const { system, messages } = toPrompt(request);
+    // A new question is screened before the auditor sees it: an attempt to rewrite its instructions, or
+    // anything that is not about this fund's ledger, gets a fixed reply and no auditor call.
+    const question = freshQuestion(request);
+    if (question !== null) {
+      const verdict = await screenQuestion(question);
+      if (verdict !== "ledger") {
+        console.info(`ops/ask: question refused (${verdict})`);
+        const { events, response } = cannedTurn(REFUSAL[verdict]);
+        const lines = [...events.map((event) => ({ event })), { complete: response }].map((l) => JSON.stringify(l)).join("\n") + "\n";
+        return new Response(lines, { headers: { "Content-Type": "application/x-ndjson; charset=utf-8", "Cache-Control": "no-store" } });
+      }
+    }
+
+    const prompt = toPrompt(request);
+    // The server's scope rule goes first; the browser-built instructions follow and cannot replace it.
+    const system = `${SCOPE_GUARD}\n\n${prompt.system}`;
+    const { messages } = prompt;
     const tools = toTools(request.tools);
     const collector = new TurnCollector(randomUUID(), MODELS.auditor, request.tools);
     const abort = new AbortController();

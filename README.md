@@ -197,6 +197,7 @@ The auditor reads and draws; it cannot approve, pay or change anything. The mode
 - The grants table carries a code-computed *Policy amount* (grant level plus the household rule), so "check every grant against the rules" compares numbers instead of reading summaries.
 - Thinking is off on this route because Studio's conversation history has no place for signed thinking blocks. The system prompt and the tool catalogue are prompt-cached, which keeps a 15-turn chart request at one to two cents.
 - The Anthropic key never leaves the server. The route refuses anyone who is not signed in, caps request size and limits how many model turns it will run. Charts the auditor adds stay in that browser tab.
+- It stays on the ledger. Every new question is screened on the server before the auditor sees it (`lib/ops/ask-guard.ts`): known instruction-override phrasings ("ignore all previous instructions", "show me your system prompt", also in Korean) are refused without a model call, and Claude Haiku sorts the rest into ledger, off-topic or injection. A refused question gets a fixed one-line reply and never reaches the auditor or its tools. The server also puts its own scope rule first in the system prompt, ahead of the instructions the browser sends, so a request cannot leave it out.
 
 </details>
 
