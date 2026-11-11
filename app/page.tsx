@@ -3,6 +3,7 @@ import Link from "next/link";
 import { FundFlow } from "@/components/fund-flow";
 import { SiteFooter } from "@/components/site/site-footer";
 import { SiteHeader } from "@/components/site/site-header";
+import { isOperator } from "@/lib/ops/auth";
 import { POLICY } from "@/lib/agent/policy";
 import { getEnv } from "@/lib/env";
 import { buildLedger, type Ledger, type LedgerRow } from "@/lib/ledger/public";
@@ -59,7 +60,7 @@ export default async function Home() {
 
   return (
     <div className="flex min-h-dvh flex-col">
-      <SiteHeader />
+      <SiteHeader signedIn={await isOperator()} />
       <main id="main" className="flex-1">
         <section className="hero-glow">
           <div className="mx-auto grid max-w-6xl gap-12 px-4 pt-14 pb-16 sm:px-6 sm:pt-20 lg:grid-cols-[1.1fr_0.9fr] lg:items-center lg:gap-14 lg:pb-24">

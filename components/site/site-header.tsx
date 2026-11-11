@@ -25,18 +25,22 @@ const tapArea = "relative after:absolute after:inset-x-0 after:-inset-y-1.5 afte
 const linkClass = "rounded-md px-2 py-1.5 font-medium whitespace-nowrap text-muted-foreground transition-colors hover:text-foreground sm:px-2.5";
 
 /**
- * The one header of the site. On the staff console (`staff` set) it keeps the same links, so a visitor can
- * always get back, and adds the two that belong to staff: Ask the ledger, and Sign in or Sign out.
+ * The one header of the site, with the same links on every page: the public pages, then the staff console,
+ * Ask the ledger, and Sign in or Sign out. On the staff console (`staff` set) the header is wider and the two
+ * staff links come first on smaller screens. A public page passes `signedIn` so it can offer Sign out.
  */
-export function SiteHeader({ staff }: { staff?: "viewer" | "operator" }) {
+export function SiteHeader({ staff, signedIn }: { staff?: "viewer" | "operator"; signedIn?: boolean }) {
   const path = usePathname();
   const router = useRouter();
   const onAudit = path.startsWith("/ops/audit");
+  const operator = staff ? staff === "operator" : Boolean(signedIn);
+  // On a public page the two staff links appear from the large breakpoint, after the public links.
+  const staffLinkWidth = staff ? undefined : SHOW_FROM.lg;
 
   async function signOut() {
     await fetch("/api/ops/login", { method: "DELETE" });
     // Stay where they are: the server shows the page view-only while the demo is open, or sends them to the sign-in.
-    router.replace(onAudit ? "/ops/audit" : "/ops");
+    if (path.startsWith("/ops")) router.replace(onAudit ? "/ops/audit" : "/ops");
     router.refresh();
   }
 
@@ -55,24 +59,20 @@ export function SiteHeader({ staff }: { staff?: "viewer" | "operator" }) {
               </Link>
             );
           })}
-          {staff && (
-            <>
-              <Link href="/ops/audit" aria-current={onAudit ? "page" : undefined} className={cn(tapArea, linkClass, "inline-flex items-center gap-1.5", onAudit && "text-foreground")}>
-                <BotMessageSquare aria-hidden="true" className="size-4 text-primary" />
-                Ask the ledger
-              </Link>
-              {staff === "operator" ? (
-                <button type="button" onClick={signOut} className={cn(tapArea, linkClass, "inline-flex items-center gap-1.5")}>
-                  <LogOut aria-hidden="true" className="size-4" />
-                  Sign out
-                </button>
-              ) : (
-                <Link href="/ops/login" className={cn(tapArea, linkClass, "inline-flex items-center gap-1.5")}>
-                  <LogIn aria-hidden="true" className="size-4" />
-                  Sign in
-                </Link>
-              )}
-            </>
+          <Link href="/ops/audit" aria-current={onAudit ? "page" : undefined} className={cn(tapArea, linkClass, "inline-flex items-center gap-1.5", onAudit && "text-foreground", staffLinkWidth)}>
+            <BotMessageSquare aria-hidden="true" className="size-4 text-primary" />
+            Ask the ledger
+          </Link>
+          {operator ? (
+            <button type="button" onClick={signOut} className={cn(tapArea, linkClass, "inline-flex items-center gap-1.5", staffLinkWidth)}>
+              <LogOut aria-hidden="true" className="size-4" />
+              Sign out
+            </button>
+          ) : (
+            <Link href="/ops/login" className={cn(tapArea, linkClass, "inline-flex items-center gap-1.5", staffLinkWidth)}>
+              <LogIn aria-hidden="true" className="size-4" />
+              Sign in
+            </Link>
           )}
           <Link
             href="/donate"

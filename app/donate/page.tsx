@@ -3,6 +3,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { SiteFooter } from "@/components/site/site-footer";
 import { SiteHeader } from "@/components/site/site-header";
+import { isOperator } from "@/lib/ops/auth";
 import { POLICY } from "@/lib/agent/policy";
 import { duration, moneyWhole, plural } from "@/lib/format";
 import { buildLedger, type Ledger } from "@/lib/ledger/public";
@@ -42,7 +43,7 @@ export default async function DonatePage() {
 
   return (
     <div className="flex min-h-dvh flex-col">
-      <SiteHeader />
+      <SiteHeader signedIn={await isOperator()} />
       <main id="main" className="hero-glow flex-1">
         {/* Three blocks so a phone reads the pitch, then the amount picker, then the details. */}
         <div className="mx-auto grid w-full max-w-6xl gap-8 px-4 py-12 sm:px-6 sm:py-16 lg:grid-cols-[1fr_440px] lg:gap-x-16 lg:gap-y-7">

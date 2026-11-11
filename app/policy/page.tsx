@@ -5,6 +5,7 @@ import type { Metadata } from "next";
 import { marked } from "marked";
 import { SiteFooter } from "@/components/site/site-footer";
 import { SiteHeader } from "@/components/site/site-header";
+import { isOperator } from "@/lib/ops/auth";
 import { loadPolicyText, POLICY, type Tier } from "@/lib/agent/policy";
 import { getEnv } from "@/lib/env";
 import { moneyWhole, num } from "@/lib/format";
@@ -30,7 +31,7 @@ export default async function PolicyPage() {
 
   return (
     <div className="flex min-h-dvh flex-col">
-      <SiteHeader />
+      <SiteHeader signedIn={await isOperator()} />
       <main id="main" className="flex-1">
         <section className="hero-glow border-b border-border/70">
           <div className="mx-auto max-w-6xl px-4 pt-12 pb-10 sm:px-6 sm:pt-16 sm:pb-12">

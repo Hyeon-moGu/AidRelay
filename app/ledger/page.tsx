@@ -8,6 +8,7 @@ import { FundFlow } from "@/components/fund-flow";
 import { cn } from "cn";
 import { SiteFooter } from "@/components/site/site-footer";
 import { SiteHeader } from "@/components/site/site-header";
+import { isOperator } from "@/lib/ops/auth";
 import { duration, money, moneyWhole, num, percent, plural, utc } from "@/lib/format";
 import { buildLedger, type Ledger } from "@/lib/ledger/public";
 import { getEnv } from "@/lib/env";
@@ -27,7 +28,7 @@ export default async function LedgerPage() {
 
   return (
     <div className="flex min-h-dvh flex-col">
-      <SiteHeader />
+      <SiteHeader signedIn={await isOperator()} />
       <main id="main" className="flex-1">
         <section className="hero-glow border-b border-border/70">
           <div className="mx-auto max-w-6xl px-4 pt-12 pb-10 sm:px-6 sm:pt-16 sm:pb-12">
