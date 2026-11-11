@@ -264,11 +264,11 @@ describe("seed/README.md Demo state, replayed", () => {
     expect((await getCase("C-001"))?.status).toBe("paid");
     expect(await fundTotals()).toEqual({ raised: 4_500, paid: 2_750, reserved: 0, balance: 1_750 });
 
-    // 5. On camera: the operator approves the six rows; the agent pays four and parks exactly two.
+    // 5. On camera: the operator raises C-022 from $500 to $600 in the grid and approves the six rows; the agent pays four and parks exactly two.
     const sixRows = ["C-004", "C-003", ...tier3Bulk];
-    const decided = await applyHumanDecision({ action: "approve", caseIds: sixRows });
+    const decided = await applyHumanDecision({ action: "approve", caseIds: sixRows, amounts: { "C-022": 60_000 } });
     expect(decided.results.every((r) => r.ok)).toBe(true);
-    expect(decided.results.map((r) => r.amountCents)).toEqual([55_000, 35_000, 35_000, 35_000, 35_000, 35_000]);
+    expect(decided.results.map((r) => r.amountCents)).toEqual([55_000, 35_000, 35_000, 40_000, 45_000, 60_000]);
     await runCaseOfficer({ trigger: "operator.command", command: "An operator approved 6 case(s)" });
     expect(failures()).toEqual([]);
     const after5 = await statuses();
@@ -276,18 +276,18 @@ describe("seed/README.md Demo state, replayed", () => {
     expect(after5.parked).toEqual(["C-021", "C-022"]);
     const payOrder = state.toolLog.filter((t) => t.name === "create_payout").map((t) => (t.args as { caseId: string }).caseId).slice(-4);
     expect(payOrder).toEqual(["C-004", "C-003", "C-019", "C-020"]);
-    expect(await fundTotals()).toEqual({ raised: 4_500, paid: 2_750, reserved: 1_600, balance: 150 });
+    expect(await fundTotals()).toEqual({ raised: 4_500, paid: 2_750, reserved: 1_650, balance: 100 });
     await payPayPalBatches();
-    expect(await fundTotals()).toEqual({ raised: 4_500, paid: 4_350, reserved: 0, balance: 150 });
+    expect(await fundTotals()).toEqual({ raised: 4_500, paid: 4_400, reserved: 0, balance: 100 });
 
-    // 6. On camera: DONOR gives $700; the agent pays exactly #3 and #4.
+    // 6. On camera: DONOR gives $1,000; the agent pays exactly #3 ($450) and #4 ($600).
     const before6 = state.toolLog.length;
-    await donate("O-3", 70_000);
+    await donate("O-3", 100_000);
     await runCaseOfficer({ trigger: "donation.captured", orderId: "O-3" });
     const created6 = state.toolLog.slice(before6).filter((t) => t.name === "create_payout");
     expect(created6.map((t) => (t.args as { caseId: string }).caseId)).toEqual(["C-021", "C-022"]);
     await payPayPalBatches();
-    expect(await fundTotals()).toEqual({ raised: 5_200, paid: 5_050, reserved: 0, balance: 150 });
+    expect(await fundTotals()).toEqual({ raised: 5_500, paid: 5_450, reserved: 0, balance: 50 });
     expect(failures()).toEqual([]);
 
     // One payout per case, never two batches for one case.
@@ -298,7 +298,7 @@ describe("seed/README.md Demo state, replayed", () => {
 
     // Public ledger: totals, every paid row with a batch id, 11 of 17 paid without a human, no PII.
     const ledger = await buildLedger();
-    expect(ledger.fund).toMatchObject({ raisedCents: 520_000, paidCents: 505_000, reservedCents: 0, balanceCents: 15_000 });
+    expect(ledger.fund).toMatchObject({ raisedCents: 550_000, paidCents: 545_000, reservedCents: 0, balanceCents: 5_000 });
     expect(ledger.metrics.casesPaid).toBe(17);
     expect(ledger.metrics.autoPaidShare).toBeCloseTo(11 / 17);
     expect(ledger.metrics.duplicatePayouts).toBe(0);
@@ -323,7 +323,7 @@ describe("seed/README.md Demo state, replayed", () => {
     await payPayPalBatches();
     const callsBefore = vi.mocked(createPayout).mock.calls.length;
 
-    await applyHumanDecision({ action: "approve", caseIds: ["C-004", "C-003", ...range(19, 22)] });
+    await applyHumanDecision({ action: "approve", caseIds: ["C-004", "C-003", ...range(19, 22)], amounts: { "C-022": 60_000 } });
     // Cloud Scheduler's sweep (every 10 minutes) and the operator's run start together.
     await Promise.all([runCaseOfficer({ trigger: "operator.command", command: "An operator approved 6 case(s)" }), runCaseOfficer({ trigger: "sweep" })]);
 
@@ -331,7 +331,7 @@ describe("seed/README.md Demo state, replayed", () => {
     expect(s.parked).toEqual(["C-021", "C-022"]);
     expect(s.paying).toEqual(["C-003", "C-004", "C-019", "C-020"]);
     expect(vi.mocked(createPayout).mock.calls.length - callsBefore).toBe(4); // never a second PayPal call for one case
-    expect(await fundTotals()).toEqual({ raised: 4_500, paid: 2_750, reserved: 1_600, balance: 150 });
+    expect(await fundTotals()).toEqual({ raised: 4_500, paid: 2_750, reserved: 1_650, balance: 100 });
     // What the activity feed shows on camera: the run that lost the race reports "already in payment", not errors.
     expect(errors()).toEqual([]);
     expect(state.toolLog.some((t) => (t.result as { alreadyHandled?: boolean })?.alreadyHandled)).toBe(true);
@@ -347,8 +347,8 @@ describe("seed/README.md Demo state, replayed", () => {
     await runCaseOfficer({ trigger: "case.created", caseId: "C-001" });
     await payPayPalBatches();
 
-    await applyHumanDecision({ action: "approve", caseIds: ["C-004", "C-003", ...range(19, 22)] });
-    await donate("O-3", 70_000);
+    await applyHumanDecision({ action: "approve", caseIds: ["C-004", "C-003", ...range(19, 22)], amounts: { "C-022": 60_000 } });
+    await donate("O-3", 100_000);
     await Promise.all([
       runCaseOfficer({ trigger: "operator.command", command: "An operator approved 6 case(s)" }),
       runCaseOfficer({ trigger: "donation.captured", orderId: "O-3" }),
@@ -356,7 +356,7 @@ describe("seed/README.md Demo state, replayed", () => {
     await payPayPalBatches();
     const s = await statuses();
     expect(s.parked ?? []).toEqual([]);
-    expect(await fundTotals()).toEqual({ raised: 5_200, paid: 5_050, reserved: 0, balance: 150 });
+    expect(await fundTotals()).toEqual({ raised: 5_500, paid: 5_450, reserved: 0, balance: 50 });
     const payouts = db.all("payouts") as unknown as PayoutDoc[];
     expect(payouts).toHaveLength(17);
     expect(errors()).toEqual([]);

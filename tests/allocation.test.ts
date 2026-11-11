@@ -16,22 +16,22 @@ describe("planAllocation", () => {
       c("C-004", 4, 55_000, 4),
       c("C-003", 3, 35_000, 3),
       c("B-09", 3, 35_000, 10),
-      c("B-10", 3, 35_000, 11),
-      c("B-11", 3, 35_000, 12),
-      c("B-12", 3, 35_000, 13),
+      c("B-10", 3, 40_000, 11),
+      c("B-11", 3, 45_000, 12),
+      c("B-12", 3, 60_000, 13), // $500 by policy, raised to $600 by the volunteer in the grid
     ];
     const plan = planAllocation(batch, 175_000);
     expect(plan.pay.map((x) => x.id)).toEqual(["C-004", "C-003", "B-09", "B-10"]);
     expect(plan.park.map((x) => x.id)).toEqual(["B-11", "B-12"]);
-    expect(plan.remainingCents).toBe(15_000);
+    expect(plan.remainingCents).toBe(10_000);
   });
 
-  it("replays the demo: a $700 donation then pays exactly the two parked cases", () => {
-    const parked = [c("B-11", 3, 35_000, 12), c("B-12", 3, 35_000, 13)];
-    const plan = planAllocation(parked, 15_000 + 70_000);
+  it("replays the demo: a $1,000 donation then pays exactly the two parked cases", () => {
+    const parked = [c("B-11", 3, 45_000, 12), c("B-12", 3, 60_000, 13)];
+    const plan = planAllocation(parked, 10_000 + 100_000);
     expect(plan.pay.map((x) => x.id)).toEqual(["B-11", "B-12"]);
     expect(plan.park).toEqual([]);
-    expect(plan.remainingCents).toBe(15_000);
+    expect(plan.remainingCents).toBe(5_000);
   });
 
   it("strict priority: a big high-tier case that does not fit blocks smaller ones behind it", () => {

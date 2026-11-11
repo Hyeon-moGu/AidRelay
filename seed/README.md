@@ -40,7 +40,7 @@ Share paid without a human once the operator approves the six-row batch: 11 of 1
 2. Donate **$4,500 in total** on `/donate` as DONOR (e.g. $3,000 + $1,500).
 3. `pnpm agent:sweep` → C-002, C-006 and the 8 bulk tier-2 cases are paid (10 × $250 = $2,500). **Balance: $2,000.**
 4. On camera, C-001 auto-pays → **$1,750.**
-5. On camera, the operator approves six rows: C-004 ($550), C-003 ($350), 4 bulk tier-3 ($350 each) = $2,300. P-8 pays tier-descending, then first-come: C-004 → $1,200 · C-003 → $850 · bulk tier-3 #1 → $500 · #2 → $150 · **#3 and #4 park.**
-6. On camera, DONOR gives **$700** → $850 → the agent pays #3 and #4 (`create_payout ×2`) → $150 left.
+5. On camera, the operator approves six rows: C-004 ($550), C-003 ($350) and the 4 bulk tier-3 cases, whose households of 3, 5, 6 and 7 give $350, $400, $450 and $500 (P-6). Before approving, the operator raises the last one (C-022) from $500 to **$600** in the grid. Total $2,700. P-8 pays tier-descending, then first-come: C-004 → $1,200 · C-003 → $850 · bulk tier-3 #1 ($350) → $500 · #2 ($400) → $100 · **#3 ($450) and #4 ($600) park.**
+6. On camera, DONOR gives **$1,000** → $1,100 → the agent pays #3 and #4 (`create_payout ×2`, $1,050) → $50 left.
 
 Change any amount and the two live scenes ("some rows park", "the donation pays exactly two") stop lining up. Redo this arithmetic if the policy tiers, the household adjustment or the bulk counts change.

@@ -179,7 +179,7 @@
         "_expected": { "tier": 2, "recommendedAmountCents": 25000, "autoPaid": true }
       },
       "tier3_displaced": {
-        "householdSize": [2, 3, 4],
+        "householdSize": [3, 5, 6, 7],
         "requestedAmountCents": [35000, 40000, 50000],
         "narratives_en": [
           "Water reached the windows and we were told to leave. Staying with relatives. Downstairs is a total loss.",
@@ -189,7 +189,7 @@
           "El agua llegó a las ventanas y tuvimos que salir. Estamos con familiares. Perdimos todo lo de abajo."
         ],
         "photoBrief": "Exterior of a house or mobile home with a mud/water line near window height, debris in yard, no people. Vary house style per image.",
-        "_expected": { "tier": 3, "recommendedAmountCents": 35000, "autoPaid": false, "status": "needs_review" }
+        "_expected": { "tier": 3, "recommendedAmountCentsByCase": [35000, 40000, 45000, 50000], "autoPaid": false, "status": "needs_review", "reason": "tier 3 ($350) + P-6 (+$50 per member beyond 4): households of 3, 5, 6 and 7 → $350, $400, $450, $500, all above the $250 limit" }
       }
     }
   }

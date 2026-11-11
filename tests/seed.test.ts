@@ -119,8 +119,10 @@ describe("seed plan", () => {
     expect(new Set(bulk.map((c) => c.contact.phone)).size).toBe(12);
   });
 
-  it("keeps bulk households at 4 or fewer so P-6 never changes the demo arithmetic", () => {
-    for (const c of bulk) expect(c.householdSize, c.id).toBeLessThanOrEqual(4);
+  it("keeps tier-2 bulk households at 4 or fewer (they auto-pay at $250) and spreads the tier-3 ones so P-6 gives $350 to $500", () => {
+    for (const c of bulk.filter((x) => x.template === "tier2_clean")) expect(c.householdSize, c.id).toBeLessThanOrEqual(4);
+    // The demo arithmetic in seed/README.md "Demo state" depends on exactly these four households.
+    expect(bulk.filter((x) => x.template === "tier3_displaced").map((c) => c.householdSize)).toEqual([3, 5, 6, 7]);
   });
 
   it("shares a photo and an address only where _expected says the dedupe should fire (C-009 → C-003)", () => {
