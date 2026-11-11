@@ -56,5 +56,5 @@ Editing the wording changes how the agent judges a case. The amounts, the declar
 ## 8. Change log
 - v1, initial demo policy.
 - v1 (2026-11-07), P-9 auto-approve tier minimum lowered from 2 to 1: the smallest grants are the safest to automate, and the amount cap already limits exposure.
-- v1 (2026-11-07, hardening), P-7 ceiling for human-set amounts; P-9 conditions 8–10 (evidence on file, second evaluation, automation limits); P-10 automation limits; the agent never overrides a human decision.
+- v1 (2026-11-07, hardening), P-7 ceiling for human-set amounts; P-9 conditions 8 to 10 (evidence on file, second evaluation, automation limits); P-10 automation limits; the agent never overrides a human decision.
 - v1 (2026-11-09), §7: in the demo the staff console is open to look at (photos and narratives visible, contact details hidden, every action behind the sign-in).
