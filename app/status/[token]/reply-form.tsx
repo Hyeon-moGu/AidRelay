@@ -30,6 +30,7 @@ export function ReplyForm({ token, lang }: { token: string; lang: Lang }) {
     try {
       const body = new FormData();
       body.set("text", text);
+      body.set("lang", lang);
       for (const f of files) body.append("photos", f);
       const res = await fetch(`/api/status/${token}/reply`, { method: "POST", body });
       const json = (await res.json()) as { ok: boolean; error?: string };

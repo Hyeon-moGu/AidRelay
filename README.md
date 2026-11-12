@@ -82,6 +82,7 @@ The limits live in [`policy.md`](policy.md), written by the fund's people and pu
 - **The applicant's story is data, not instructions.** It is fenced off in the prompt and scanned for instructions; a hit goes to a volunteer. (`lib/agent/evaluate.ts`, `lib/agent/prompts.ts`; `evaluate.test.ts`)
 - **The ledger identifies no one.** Names, addresses, emails, phone numbers and anything about health are kept off it, and documents an applicant sends are shown only to signed-in staff. (`lib/ledger/anonymize.ts`; `anonymize.test.ts`)
 - **Everything is on the record.** Every tool call appears live in the staff console, and every change to a case or the fund is written to an audit log with the policy clause it relied on. (`lib/agent/tools.ts`, `lib/db/repos/audit.ts`; `officer.test.ts`)
+- **The public demo cannot run up an AI bill.** Every application and reply is reviewed by a paid model, so the site takes at most 3 an hour and 5 a day from one network and 100 a day in all; staff sign-in allows 10 tries an hour per network. Counters live in the database and store no IP addresses. (`lib/rate-limit.ts`; `rate-limit.test.ts`)
 - **Looking is open, acting is not.** The staff console can be opened by anyone in this demo, with contact details hidden; every action needs a signed-in volunteer. (`lib/ops/auth.ts`, `lib/ops/public-view.ts`; `ops-public-view.test.ts`)
 
 ## Built with

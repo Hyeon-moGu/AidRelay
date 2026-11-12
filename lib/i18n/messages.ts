@@ -57,7 +57,7 @@ export interface Strings {
     remove: string;
     reviewTitle: string;
     /** `fileType` names the file: "We can’t read {name}. ..." */
-    errors: { required: string; household: string; email: string; zip: string; photos: string; tooLarge: string; fileType: string; failed: string };
+    errors: { required: string; household: string; email: string; zip: string; photos: string; tooLarge: string; fileType: string; failed: string; tooManyMine: string; tooManyAll: string };
   };
   status_page: {
     title: string;
@@ -166,6 +166,8 @@ const en: Strings = {
       tooLarge: "Each file must be under 10 MB.",
       fileType: "We can’t read {name}. Please send it as a JPEG or PNG photo. iPhone HEIC photos are not supported yet.",
       failed: "Something went wrong. Please try again.",
+      tooManyMine: "This demo accepts a few submissions per person each hour and each day, because every one is reviewed by a paid AI model. Please try again later.",
+      tooManyAll: "This demo has reached today's limit for submissions, because every one is reviewed by a paid AI model. Please try again tomorrow.",
     },
   },
   status_page: {
@@ -285,6 +287,8 @@ const es: Strings = {
       tooLarge: "Cada archivo debe pesar menos de 10 MB.",
       fileType: "No pudimos leer {name}. Envíelo como foto JPEG o PNG. Las fotos HEIC del iPhone todavía no son compatibles.",
       failed: "Algo salió mal. Inténtelo de nuevo.",
+      tooManyMine: "Esta demostración acepta pocos envíos por persona cada hora y cada día, porque cada uno lo revisa un modelo de IA de pago. Inténtelo más tarde.",
+      tooManyAll: "Esta demostración alcanzó el límite de envíos de hoy, porque cada uno lo revisa un modelo de IA de pago. Inténtelo mañana.",
     },
   },
   status_page: {

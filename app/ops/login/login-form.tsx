@@ -25,6 +25,7 @@ export function LoginForm() {
       const res = await fetch("/api/ops/login", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ password }) });
       const json = (await res.json()) as { ok: boolean; error?: string };
       if (res.status === 401) throw new Error("That password did not work. It is in the Devpost testing instructions.");
+      if (res.status === 429) throw new Error("Too many sign-in attempts from this network. Please try again in an hour.");
       if (!json.ok) throw new Error(json.error ?? "Could not sign in. Please try again.");
       router.replace("/ops");
       router.refresh();

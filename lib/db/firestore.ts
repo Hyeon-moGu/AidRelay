@@ -13,6 +13,8 @@ export const col = {
   agentRuns: "agent_runs",
   webhookEvents: "webhook_events",
   autoApprovals: "auto_approvals",
+  /** Request counters for the public routes (lib/rate-limit.ts). */
+  rateLimits: "rate_limits",
 } as const;
 
 let db: Firestore | undefined;
